@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>阿里云实时语音识别测试（纯浏览器)</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 700px;
+      margin: 30px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    h1 { color: #333; text-align: center; }
+    .config {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .config input {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0 15px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    .config label { font-weight: bold; color: #555; }
+    button {
+      padding: 15px 30px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    .start-btn { background: #4CAF50; color: white; }
+    .start-btn:hover { background: #45a049; }
+    .stop-btn { background: #f44336; color: white; }
+    .stop-btn:hover { background: #da190b; }
+    .record-btn {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      font-size: 16px;
+      display: block;
+      margin: 30px auto;
+      transition: all 0.3s;
+    }
+    .record-btn.recording {
+      background: #f44336;
+      animation: pulse 1s infinite;
+    }
+    .record-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4); }
+      50% { box-shadow: 0 0 0 20px rgba(244, 67, 54, 0); }
+    }
+    .result {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      min-height: 80px;
+      margin-top: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .result h3 { margin-top: 0; color: #333; }
+    .result-text { font-size: 20px; color: #333; word-break: break-all; }
+    .log {
+      background: #1e1e1e;
+      color: #0f0;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: 'Consolas', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 20px;
+    }
+    .log-entry { margin: 2px 0; }
+    .log-entry.error { color: #f44336; }
+    .log-entry.info { color: #2196F3; }
+    .log-entry.success { color: #4CAF50; }
+    .log-entry.warn { color: #ff9800; }
+    .status {
+      text-align: center;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .status.connected { background: #e8f5e9; color: #2e7d32; }
+    .status.disconnected { background: #ffebee; color: #c62828; }
+  </style>
+</head>
+<body>
+  <h1>🎤 阿里云实时语音识别测试</h1>
+
+  <div class="config">
+    <label>AccessKey ID</label>
+    <input type="text" id="accessKeyId" placeholder="请输入 AccessKey ID">
+
+    <label>AccessKey Secret</label>
+    <input type="password" id="accessKeySecret" placeholder="请输入 AccessKey Secret">
+
+    <label>AppKey</label>
+    <input type="text" id="appkey" placeholder="请输入 AppKey">
+
+    <button class="start-btn" onclick="getToken()">获取 Token</button>
+    <span id="tokenStatus" style="margin-left: 10px; color: #666;"></span>
+  </div>
+
+  <div id="connectionStatus" class="status disconnected">未连接</div>
+
+  <button id="recordBtn" class="record-btn start-btn" onclick="toggleRecording()" disabled>
+    点击录音
+  </button>
+
+  <div class="result">
+    <h3>识别结果</h3>
+    <p class="result-text" id="resultText">等待录音...</p>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <script>
+    // 全局变量
+    let token = null;
+    let ws = null;
+    let isRecording = false;
+    let audioContext = null;
+    let mediaStream = null;
+    let audioProcessor = null;
+    let taskId = null;
+
+    // 日志函数
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    // 配置保存/加载
+    function loadConfig() {
+      const saved = localStorage.getItem('voice-test-config');
+      if (saved) {
+        const config = JSON.parse(saved);
+        document.getElementById('accessKeyId').value = config.accessKeyId || '';
+        document.getElementById('accessKeySecret').value = config.accessKeySecret || '';
+        document.getElementById('appkey').value = config.appkey || '';
+        log('配置已加载', 'info');
+      }
+    }
+
+    function saveConfig() {
+      const config = {
+        accessKeyId: document.getElementById('accessKeyId').value,
+        accessKeySecret: document.getElementById('accessKeySecret').value,
+        appkey: document.getElementById('appkey').value
+      };
+      localStorage.setItem('voice-test-config', JSON.stringify(config));
+    }
+
+    // 获取 Token
+    async function getToken() {
+      const accessKeyId = document.getElementById('accessKeyId').value;
+      const accessKeySecret = document.getElementById('accessKeySecret').value;
+
+      if (!accessKeyId || !accessKeySecret) {
+        alert('请填写 AccessKey ID 和 AccessKey Secret');
+        return;
+      }
+
+      saveConfig();
+      document.getElementById('tokenStatus').textContent = '获取中...';
+
+      try {
+        log('浏览器无法直接调用阿里云 POP API（需要签名）', 'warn');
+        log('请使用以下方法之一获取 Token:', 'info');
+        log('1. 在 Node.js 环境中使用 @alicloud/pop-core', 'info');
+        log('2. 使用阿里云控制台获取临时 Token', 'info');
+        log('3. 部署一个后端服务来获取 Token', 'info');
+        
+        document.getElementById('tokenStatus').textContent = '请手动输入 Token';
+        
+        // 添加 Token 输入框
+        const tokenInput = document.createElement('input');
+        tokenInput.type = 'text';
+        tokenInput.id = 'tokenInput';
+        tokenInput.placeholder = '请输入 Token';
+        tokenInput.style.width = '100%';
+        tokenInput.style.padding = '10px';
+        tokenInput.style.margin = '5px 0 15px';
+        tokenInput.style.border = '1px solid #ddd';
+        tokenInput.style.borderRadius = '4px';
+        tokenInput.style.boxSizing = 'border-box';
+        
+        const label = document.createElement('label');
+        label.textContent = 'Token（手动输入）';
+        label.style.fontWeight = 'bold';
+        label.style.color = '#555';
+        
+        const configDiv = document.querySelector('.config');
+        configDiv.insertBefore(label, document.getElementById('tokenStatus').nextSibling);
+        configDiv.insertBefore(tokenInput, label.nextSibling);
+        
+        // 添加确认按钮
+        const confirmBtn = document.createElement('button');
+        confirmBtn.textContent = '确认 Token';
+        confirmBtn.className = 'start-btn';
+        confirmBtn.onclick = () => {
+          token = document.getElementById('tokenInput').value;
+          if (token) {
+            localStorage.setItem('voice-token', token);
+            document.getElementById('tokenStatus').textContent = 'Token 已设置';
+            document.getElementById('recordBtn').disabled = false;
+            log('Token 已设置', 'success');
+          }
+        };
+        configDiv.appendChild(confirmBtn);
+        
+        // 加载保存的 Token
+        const savedToken = localStorage.getItem('voice-token');
+        if (savedToken) {
+          document.getElementById('tokenInput').value = savedToken;
+        }
+        
+      } catch (error) {
+        log('获取 Token 失败: ' + error.message, 'error');
+        document.getElementById('tokenStatus').textContent = '获取失败';
+      }
+    }
+
+    // 生成 UUID（32位，不带连字符）
+    function generateUUID() {
+      const uuid = 'xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+      return uuid;
+    }
+
+    // 生成 Task ID
+    function generateTaskId() {
+      return generateUUID();
+    }
+
+    // 连接 WebSocket
+    function connectWebSocket() {
+      return new Promise((resolve, reject) => {
+        const appkey = document.getElementById('appkey').value;
+        if (!appkey) {
+          reject(new Error('请填写 AppKey'));
+          return;
+        }
+        if (!token) {
+          reject(new Error('请先获取 Token'));
+          return;
+        }
+
+        const url = `wss://nls-gateway.cn-shanghai.aliyuncs.com/ws/v1?token=${token}`;
+        log('连接 WebSocket: ' + url.replace(token, '***'), 'info');
+
+        ws = new WebSocket(url);
+
+        ws.onopen = () => {
+          log('WebSocket 已连接', 'success');
+          document.getElementById('connectionStatus').className = 'status connected';
+          document.getElementById('connectionStatus').textContent = '已连接';
+          resolve();
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            log('收到消息: ' + JSON.stringify(data), 'info');
+            
+            if (data.header) {
+              if (data.header.name === 'TranscriptionStarted') {
+                log('实时语音识别已开始，开始发送音频...', 'success');
+                isRecording = true;
+                document.getElementById('recordBtn').textContent = '停止录音';
+              } else if (data.header.name === 'TranscriptionResultChanged') {
+                if (data.payload && data.payload.result) {
+                  document.getElementById('resultText').textContent = data.payload.result;
+                  log('中间结果: ' + data.payload.result, 'info');
+                }
+              } else if (data.header.name === 'SentenceBegin') {
+                log('句子开始', 'info');
+              } else if (data.header.name === 'SentenceEnd') {
+                if (data.payload && data.payload.result) {
+                  document.getElementById('resultText').textContent = data.payload.result;
+                  log('句子结束: ' + data.payload.result, 'success');
+                }
+              } else if (data.header.name === 'TranscriptionCompleted') {
+                log('实时语音识别完成', 'success');
+                stopRecordingUI();
+              } else if (data.header.name === 'TaskFailed') {
+                log('识别失败: ' + data.header.status_text, 'error');
+                stopRecordingUI();
+              }
+            }
+          } catch (e) {
+            log('解析消息失败: ' + e.message, 'error');
+          }
+        };
+
+        ws.onerror = (error) => {
+          log('WebSocket 错误', 'error');
+          reject(error);
+        };
+
+        ws.onclose = () => {
+          log('WebSocket 已关闭', 'info');
+          document.getElementById('connectionStatus').className = 'status disconnected';
+          document.getElementById('connectionStatus').textContent = '已断开';
+        };
+      });
+    }
+
+    // 发送开始识别请求（实时语音识别）
+    function sendStartRecognition() {
+      const appkey = document.getElementById('appkey').value;
+      taskId = generateTaskId();
+
+      const message = {
+        header: {
+          appkey: appkey,
+          message_id: generateUUID(),
+          task_id: taskId,
+          namespace: 'SpeechTranscriber',
+          name: 'StartTranscription',
+        },
+        payload: {
+            format: 'pcm',
+            sample_rate: 16000,
+            enable_intermediate_result: true,
+            enable_punctuation_prediction: false,
+            enable_inverse_text_normalization: true,
+            enable_semantic_sentence_detection: false
+          }
+        };
+
+      log('发送开始识别: ' + JSON.stringify(message), 'info');
+      ws.send(JSON.stringify(message));
+    }
+
+    // 发送停止识别请求（实时语音识别）
+    function sendStopRecognition() {
+      const appkey = document.getElementById('appkey').value;
+
+      const message = {
+        header: {
+          appkey: appkey,
+          message_id: generateUUID(),
+          task_id: taskId,
+          namespace: 'SpeechTranscriber',
+          name: 'StopTranscription',
+        },
+        payload: {}
+      };
+
+      log('发送停止识别', 'info');
+      ws.send(JSON.stringify(message));
+    }
+
+    // Float32 转 Int16
+    function float32ToInt16(float32Array) {
+      const int16Array = new Int16Array(float32Array.length);
+      for (let i = 0; i < float32Array.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32Array[i]));
+        int16Array[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return int16Array;
+    }
+
+    // 启动麦克风
+    async function startMicrophone() {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContextClass({ sampleRate: 16000 });
+
+        log('AudioContext 采样率: ' + audioContext.sampleRate, 'info');
+
+        const source = audioContext.createMediaStreamSource(mediaStream);
+        audioProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = 0;
+
+        let audioCount = 0;
+        let debugCount = 0;
+        audioProcessor.onaudioprocess = (event) => {
+          debugCount++;
+          if (debugCount <= 3) {
+            log('音频处理器触发 #' + debugCount + ', isRecording=' + isRecording, 'info');
+          }
+          if (isRecording && ws && ws.readyState === WebSocket.OPEN) {
+            const inputData = event.inputBuffer.getChannelData(0);
+            const int16Array = float32ToInt16(inputData);
+            ws.send(int16Array.buffer);
+            audioCount++;
+            if (audioCount % 10 === 0) {
+              log('已发送 ' + audioCount + ' 个音频包 (' + int16Array.length + ' samples)', 'info');
+            }
+          }
+        };
+
+        source.connect(audioProcessor);
+        audioProcessor.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        log('麦克风已启动', 'success');
+        return true;
+      } catch (error) {
+        log('麦克风启动失败: ' + error.message, 'error');
+        return false;
+      }
+    }
+
+    // 停止麦克风
+    function stopMicrophone() {
+      if (audioProcessor) {
+        audioProcessor.disconnect();
+        audioProcessor = null;
+      }
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        mediaStream = null;
+      }
+      if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+      }
+      log('麦克风已停止', 'info');
+    }
+
+    // 开始录音
+    async function startRecording() {
+      log('开始录音...', 'info');
+
+      try {
+        // 1. 先启动麦克风（获取权限）
+        const micOk = await startMicrophone();
+        if (!micOk) {
+          return;
+        }
+
+        // 2. 连接 WebSocket
+        await connectWebSocket();
+        
+        // 3. 发送开始识别请求
+        sendStartRecognition();
+
+        // 4. 等待 RecognitionStarted 事件后才会设置 isRecording = true
+        // 更新 UI（先显示等待状态）
+        const btn = document.getElementById('recordBtn');
+        btn.textContent = '等待开始...';
+        btn.classList.remove('start-btn');
+        btn.classList.add('stop-btn', 'recording');
+
+      } catch (error) {
+        log('启动失败: ' + error.message, 'error');
+        stopRecordingUI();
+      }
+    }
+
+    // 停止录音
+    async function stopRecording() {
+      log('停止录音...', 'info');
+      isRecording = false;
+      
+      stopMicrophone();
+      
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        sendStopRecognition();
+      }
+    }
+
+    function stopRecordingUI() {
+      isRecording = false;
+      stopMicrophone();
+      
+      const btn = document.getElementById('recordBtn');
+      btn.textContent = '点击录音';
+      btn.classList.remove('stop-btn', 'recording');
+      btn.classList.add('start-btn');
+    }
+
+    // 切换录音状态
+    async function toggleRecording() {
+      if (isRecording) {
+        await stopRecording();
+      } else {
+        await startRecording();
+      }
+    }
+
+    // 初始化
+    window.onload = () => {
+      loadConfig();
+      
+      const savedToken = localStorage.getItem('voice-token');
+      if (savedToken) {
+        token = savedToken;
+        document.getElementById('tokenStatus').textContent = 'Token 已加载';
+        document.getElementById('recordBtn').disabled = false;
+      }
+      
+      log('页面加载完成', 'success');
+      log('请先点击"获取 Token"按钮', 'info');
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,538 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  input,
+  button {
+    font-family: inherit;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all duration-300 ease-in-out;
+  }
+  
+  .btn-primary {
+    @apply bg-gradient-primary text-white shadow-md hover:shadow-lg hover:scale-105 active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-text-primary border-2 border-primary-500 hover:bg-primary-50 hover:border-primary-600;
+  }
+  
+  .card {
+    @apply bg-surface-primary rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ease-in-out;
+  }
+  
+  .input {
+    @apply w-full px-4 py-2 border-2 border-border-light rounded-lg focus:outline-none focus:border-primary-500 focus:shadow-glow transition-all duration-300 ease-in-out;
+  }
+  
+  .checkbox-custom {
+    @apply appearance-none w-5 h-5 border-2 border-primary-500 rounded cursor-pointer transition-all duration-300 ease-in-out;
+  }
+  
+  .checkbox-custom:checked {
+    @apply bg-gradient-primary;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .text-gradient {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ===== 关键帧动画 ===== */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slideInLeft {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes slideInRight {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes ping {
+    75%, 100% { transform: scale(2); opacity: 0; }
+  }
+
+  @keyframes progress {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @keyframes skeleton {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @keyframes ripple {
+    0% { transform: scale(0); opacity: 0.5; }
+    100% { opacity: 0; transform: scale(40); }
+  }
+
+  @keyframes bounce {
+    0%, 20%, 53%, 80%, 100% { transform: translate3d(0,0,0); }
+    40%, 43% { transform: translate3d(0,-8px,0); }
+    70% { transform: translate3d(0,-4px,0); }
+    90% { transform: translate3d(0,-2px,0); }
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+  }
+
+  /* ===== 动画工具类 ===== */
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .animate-bounce-slow {
+    animation: bounce 2s infinite;
+  }
+
+  .animate-fadeIn { animation: fadeIn 0.5s ease-out; }
+  .animate-slideInLeft { animation: slideInLeft 0.5s ease-out; }
+  .animate-slideInRight { animation: slideInRight 0.5s ease-out; }
+  .animate-bounce { animation: bounce 1s ease-in-out; }
+  .animate-pulse { animation: pulse 2s infinite; }
+  .animate-spin { animation: spin 1s linear infinite; }
+  .animate-ping { animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite; }
+  .animate-shake { animation: shake 0.5s ease-in-out; }
+
+  /* 延迟动画 */
+  .delay-100 { animation-delay: 100ms; }
+  .delay-200 { animation-delay: 200ms; }
+  .delay-300 { animation-delay: 300ms; }
+  .delay-500 { animation-delay: 500ms; }
+
+  /* 加载动画 */
+  .loading-spinner {
+    border: 2px solid #e2e8f0;
+    border-top: 2px solid var(--theme-color, #ff8c00);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+  }
+
+  /* 进度条动画 */
+  .progress-bar-animated {
+    height: 4px;
+    background: linear-gradient(90deg, var(--theme-color, #ff8c00) 0%, var(--theme-color, #ff8c00) 50%, var(--theme-color, #ff8c00) 100%);
+    background-size: 200% 100%;
+    animation: progress 2s ease-in-out infinite;
+  }
+
+  /* 骨架屏动画 */
+  .skeleton {
+    background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton 1.5s infinite;
+    border-radius: 4px;
+  }
+
+  /* ===== 过渡效果工具类 ===== */
+  .transition-all { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .transition-colors { transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease; }
+  .transition-transform { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .transition-opacity { transition: opacity 0.3s ease; }
+  .transition-shadow { transition: box-shadow 0.3s ease; }
+
+  /* 悬停效果 */
+  .hover-scale:hover { transform: scale(1.02); }
+  .hover-lift:hover { transform: translateY(-2px); }
+  .hover-shadow:hover { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); }
+  .hover-glow:hover { box-shadow: 0 0 20px rgba(255, 140, 0, 0.3); }
+
+  /* 点击效果 */
+  .active-scale:active { transform: scale(0.98); }
+  .active-lift:active { transform: translateY(1px); }
+
+  /* 焦点效果 */
+  .focus-ring:focus {
+    outline: 2px solid var(--theme-color, #ff8c00);
+    outline-offset: 2px;
+  }
+
+  .focus-shadow:focus {
+    box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.1);
+  }
+  
+  /* 自定义滚动条样式 - 类似图二的简洁风格 */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  
+  /* 全局滚动条样式 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #ffb347 0%, #ff8c00 100%);
+    border-radius: 4px;
+    border: 2px solid #f1f5f9;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #ff8c00 0%, #ff6b35 100%);
+  }
+  
+  ::-webkit-scrollbar-corner {
+    background: #f1f5f9;
+  }
+}
+
+.task-item {
+  margin-bottom: 12px;
+  cursor: grab;
+}
+
+/* ===== 任务项专用动画（借位效果）===== */
+/* 进入动画 - 从左侧飞入，带弹性效果 */
+.task-item-enter-active {
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.6s;
+}
+
+.task-item-enter-from {
+  opacity: 0;
+  transform: translateX(-150px) scale(0.8) rotateY(-10deg);
+}
+
+.task-item-enter-to {
+  opacity: 1;
+  transform: translateX(0) scale(1) rotateY(0);
+}
+
+/* 离开动画 - 向右侧飞出，带回弹效果 */
+.task-item-leave-active {
+  position: relative;
+  width: 100%;
+  transition: all 0.6s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  z-index: 1;
+}
+
+.task-item-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.task-item-leave-to {
+  opacity: 0;
+  transform: translateX(400px);
+}
+
+/* 筛选时任务延迟进入 */
+.task-item-enter-active {
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0s;
+}
+
+.task-item-enter-from {
+  opacity: 0;
+  transform: translateX(-100px);
+}
+
+.task-item-enter-to {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 添加任务时的移动延迟 - 短延迟，其他任务快速让位 */
+.task-item-move-add {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) 0.15s;
+}
+
+/* 删除任务时的移动延迟 - 长延迟，等待删除动画完成 */
+.task-item-move-remove {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.6s;
+}
+
+/* ===== 筛选器切换动画（6种独立动画）===== */
+
+
+
+/* 1. 全部 → 未完成 */
+.filter-all-to-pending-leave-active {
+  position: relative;
+  width: 100%;
+  transition: all 0.5s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  z-index: 1;
+}
+.filter-all-to-pending-leave-to {
+  opacity: 0;
+  transform: translateX(400px);
+}
+
+/* 2. 全部 → 已完成 */
+.filter-all-to-completed-leave-active {
+  position: relative;
+  width: 100%;
+  transition: all 0.5s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  z-index: 1;
+}
+.filter-all-to-completed-leave-to {
+  opacity: 0;
+  transform: translateX(400px);
+}
+
+/* 3. 未完成 → 全部 */
+.filter-pending-to-all-enter-active {
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.3s;
+}
+.filter-pending-to-all-leave-active {
+  position: relative;
+  width: 100%;
+  transition: all 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  z-index: 1;
+}
+/* 筛选器切换时的移动延迟 */
+.task-item-move-filter {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0s;
+}
+.filter-pending-to-all-enter-from {
+  opacity: 0;
+  transform: translateX(-150px) scale(0.8) rotateY(-10deg);
+}
+.filter-pending-to-all-leave-to {
+  opacity: 0;
+  transform: translateX(150px);
+}
+
+/* 4. 未完成 → 已完成 */
+.filter-pending-to-completed-enter-active {
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.filter-pending-to-completed-leave-active {
+  position: relative;
+  width: 100%;
+  transition: all 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  z-index: 1;
+}
+.filter-pending-to-completed-enter-from {
+  opacity: 0;
+  transform: translateX(-150px) scale(0.8) rotateY(-10deg);
+}
+.filter-pending-to-completed-leave-to {
+  opacity: 0;
+  transform: translateX(150px);
+}
+
+/* 5. 已完成 → 全部 */
+.filter-completed-to-all-enter-active {
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.filter-completed-to-all-leave-active {
+  position: relative;
+  width: 100%;
+  transition: all 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  z-index: 1;
+}
+.filter-completed-to-all-enter-from {
+  opacity: 0;
+  transform: translateX(-150px) scale(0.8) rotateY(-10deg);
+}
+.filter-completed-to-all-leave-to {
+  opacity: 0;
+  transform: translateX(150px);
+}
+
+/* 6. 已完成 → 未完成 */
+.filter-completed-to-pending-enter-active {
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.filter-completed-to-pending-leave-active {
+  position: relative;
+  width: 100%;
+  transition: all 0.3s cubic-bezier(0.6, -0.28, 0.735, 0.045);
+  z-index: 1;
+}
+.filter-completed-to-pending-enter-from {
+  opacity: 0;
+  transform: translateX(-150px) scale(0.8) rotateY(-10deg);
+}
+.filter-completed-to-pending-leave-to {
+  opacity: 0;
+  transform: translateX(150px);
+}
+
+/* ===== Vue Transition 动画 ===== */
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.5s ease;
+}
+
+.slide-enter-from {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
+.slide-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.scale-enter-active,
+.scale-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.stagger-enter-active {
+  transition: all 0.3s ease;
+}
+
+.stagger-enter-from {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* 列表移动动画 */
+.list-move {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Toast 弹窗动画 */
+.toast-enter-active {
+  animation: toastIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-leave-active {
+  animation: toastOut 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px) scale(0.8);
+  }
+}
+
+/* 模态框/设置面板动画 */
+.modal-enter-active,
+.modal-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+/* 错误消息动画 */
+.error-fade-enter-active,
+.error-fade-leave-active {
+  transition: all 0.3s ease;
+}
+
+.error-fade-enter-from,
+.error-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}

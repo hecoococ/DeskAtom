@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>待办事项</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      user-select: none;
+    }
+    
+    .indicator {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #ffb347 0%, #ff8c00 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: grab;
+      touch-action: none;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    
+    .indicator:active {
+      cursor: grabbing;
+    }
+    
+    .indicator:hover {
+      transform: scale(1.15);
+      animation: none;
+    }
+    
+    .indicator.dragging {
+      animation: none;
+      transform: scale(1.1);
+    }
+    
+    .check-icon {
+      width: 20px;
+      height: 20px;
+      color: white;
+      pointer-events: none;
+    }
+    
+    .badge {
+      position: absolute;
+      top: -3px;
+      right: -3px;
+      min-width: 16px;
+      height: 16px;
+      background: #ef4444;
+      color: white;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      pointer-events: none;
+    }
+    
+    .badge.hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="indicator" id="indicator">
+    <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    <div class="badge hidden" id="badge">0</div>
+  </div>
+  
+  <script>
+    const indicator = document.getElementById('indicator');
+    const badge = document.getElementById('badge');
+    
+    let isDragging = false;
+    let activePointerId = null;
+    
+    function endPointerDrag() {
+      if (!isDragging) return;
+      isDragging = false;
+      if (activePointerId !== null) {
+        try {
+          indicator.releasePointerCapture(activePointerId);
+        } catch (_) {}
+        activePointerId = null;
+      }
+      indicator.classList.remove('dragging');
+      if (window.electronAPI) {
+        window.electronAPI.endDrag();
+      }
+    }
+    
+    indicator.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      isDragging = true;
+      activePointerId = e.pointerId;
+      indicator.setPointerCapture(e.pointerId);
+      indicator.classList.add('dragging');
+      if (window.electronAPI) {
+        window.electronAPI.startDrag();
+      }
+    });
+    
+    indicator.addEventListener('pointermove', () => {
+      if (!isDragging) return;
+      if (window.electronAPI) {
+        window.electronAPI.moveWindow();
+      }
+    });
+    
+    indicator.addEventListener('pointerup', endPointerDrag);
+    indicator.addEventListener('pointercancel', endPointerDrag);
+    
+    // 更新徽章数量
+    window.updateBadge = (count) => {
+      if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    };
+  </script>
+</body>
+</html>
