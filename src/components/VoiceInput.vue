@@ -263,7 +263,8 @@ async function startMicCapture() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext
   audioContext = new AudioContextClass()
 
-  await audioContext.audioWorklet.addModule('/audio-processor.js')
+  const workletUrl = new URL('../audio-processor.js', import.meta.url)
+  await audioContext.audioWorklet.addModule(workletUrl)
 
   const source = audioContext.createMediaStreamSource(mediaStream)
 
