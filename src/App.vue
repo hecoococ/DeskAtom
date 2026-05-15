@@ -22,14 +22,14 @@
             <input
               v-model="newTask"
               @keyup.enter="addTask"
-              placeholder="添加新任务..."
+              :placeholder="t('app.addTaskPlaceholder')"
               class="task-input"
             >
             <VoiceInput @result="handleVoiceResult" @error="handleVoiceError" @autoAdd="handleAutoAddTask" />
             <button
               @click="addTask"
               class="add-btn"
-              title="添加任务"
+              :title="t('app.addTaskTitle')"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M10 5V15M5 10H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -37,7 +37,7 @@
             </button>
           </div>
           <transition name="fade">
-            <p v-if="showEmptyError" class="error-message">任务内容不能为空！</p>
+            <p v-if="showEmptyError" class="error-message">{{ t('app.emptyError') }}</p>
           </transition>
         </div>
 
@@ -46,7 +46,7 @@
             <svg class="stats-icon" width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="stats-title">任务统计</span>
+            <span class="stats-title">{{ t('app.taskStats') }}</span>
           </div>
           <div class="stats-content">
             <div class="progress-section">
@@ -56,20 +56,20 @@
                   :style="{ width: progressPercentage + '%' }"
                 ></div>
               </div>
-              <div class="progress-text">{{ progressPercentage }}% 完成</div>
+              <div class="progress-text">{{ progressPercentage }}{{ t('app.completePercent') }}</div>
             </div>
             <div class="stats-grid">
               <div class="stat-item">
                 <div class="stat-value total">{{ totalTasks }}</div>
-                <div class="stat-label">总计</div>
+                <div class="stat-label">{{ t('app.total') }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value completed">{{ completedTasks }}</div>
-                <div class="stat-label">已完成</div>
+                <div class="stat-label">{{ t('app.completed') }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value pending">{{ pendingTasks }}</div>
-                <div class="stat-label">未完成</div>
+                <div class="stat-label">{{ t('app.pending') }}</div>
               </div>
             </div>
           </div>
@@ -79,18 +79,18 @@
           <button
             @click="focusMode = true"
             class="focus-mode-btn"
-            title="进入专注模式"
+            :title="t('app.focusModeTitle')"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
               <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
-            <span>任务专注</span>
+            <span>{{ t('app.focusModeBtn') }}</span>
           </button>
           <button
             @click="clearAllTasks"
             class="clear-all-btn"
-            title="清空所有任务"
+            :title="t('app.clearAllTitle')"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -140,15 +140,15 @@
                   <path d="M25 40h30M40 25v30" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
                 </svg>
               </div>
-              <h3 class="empty-title">暂无任务</h3>
-              <p class="empty-description">添加您的第一个任务开始吧！</p>
+              <h3 class="empty-title">{{ t('app.noTasks') }}</h3>
+              <p class="empty-description">{{ t('app.noTasksDesc') }}</p>
             </div>
             <div v-else class="quick-input-wrapper empty-input-wrapper" @click.stop>
               <input
                 v-model="quickTaskInput"
                 @keyup.enter="addQuickTask"
                 @keyup.esc="showQuickInput = false; quickTaskInput = ''"
-                placeholder="输入任务内容..."
+                :placeholder="t('app.inputTaskPlaceholder')"
                 class="quick-task-input"
                 ref="quickInputRef"
                 autofocus
@@ -172,7 +172,7 @@
                 v-model="quickTaskInput"
                 @keyup.enter="addQuickTask"
                 @keyup.esc="showQuickInput = false; quickTaskInput = ''"
-                placeholder="输入任务内容..."
+                :placeholder="t('app.inputTaskPlaceholder')"
                 class="quick-task-input"
                 ref="quickInputRef"
                 autofocus
@@ -224,6 +224,10 @@ import SettingsPanel from './components/SettingsPanel.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import FocusMode from './components/FocusMode.vue'
 import VoiceInput from './components/VoiceInput.vue'
+import { createI18n } from './i18n/index.js'
+
+const { t, locale } = createI18n()
+locale.value = 'zh'
 
 const newTask = ref('')
 const tasks = ref([])
@@ -248,24 +252,26 @@ const confirmDialog = ref({
 
 // 配色方案配置
 const colorSchemes = [
+  { id: 'deskatom', name: 'DeskAtom', colors: ['#ffb347', '#ff8c00'] },
   { id: 'sky', name: '天空蓝', colors: ['#a1c4fd', '#c2e9fb'] },
   { id: 'purple', name: '紫粉', colors: ['#9b5de5', '#f15bb5'] },
   { id: 'coral', name: '珊瑚橙', colors: ['#ff7e5f', '#feb47b'] },
   { id: 'mint', name: '薄荷绿', colors: ['#00b09b', '#96c93d'] },
   { id: 'ocean', name: '海洋蓝', colors: ['#0f4c75', '#3282b8'] },
-  { id: 'indigo', name: '靛蓝紫', colors: ['#4361ee', '#3a0ca3'] }
+  { id: 'indigo', name: '靛蓝紫', colors: ['#4361ee', '#3a0ca3'] },
+  { id: 'cyber', name: '赛博', colors: ['#34ffdc', '#3a0ca3'] }
 ]
 
 // 应用设置
 const appSettings = reactive({
-  themeColor: { r: 255, g: 140, b: 0 },
-  themeColorMode: 'single',
-  primaryColor: { r: 255, g: 140, b: 0 },
-  secondaryColor: { r: 255, g: 255, b: 255 },
+  themeColor: { r: 255, g: 179, b: 71 },
+  themeColorMode: 'dual',
+  primaryColor: { r: 255, g: 179, b: 71 },
+  secondaryColor: { r: 255, g: 140, b: 0 },
   opacity: 100,
   darkMode: false,
   glassBlur: 8,
-  colorScheme: 'sky'
+  colorScheme: 'deskatom'
 })
 
 // 获取当前配色方案的渐变
@@ -299,9 +305,9 @@ const appStyle = computed(() => {
     themeGradient = `linear-gradient(135deg, rgb(${p.r}, ${p.g}, ${p.b}), rgb(${s.r}, ${s.g}, ${s.b}))`
   } else {
     // 单色模式：使用主题色创建渐变
-    const darkerR = Math.max(0, Math.floor(p.r * 0.7))
-    const darkerG = Math.max(0, Math.floor(p.g * 0.7))
-    const darkerB = Math.max(0, Math.floor(p.b * 0.7))
+    const darkerR = Math.max(0, Math.floor(p.r * 0.88))
+    const darkerG = Math.max(0, Math.floor(p.g * 0.88))
+    const darkerB = Math.max(0, Math.floor(p.b * 0.88))
     glassGradient = `linear-gradient(135deg, rgba(${p.r}, ${p.g}, ${p.b}, ${glassOpacity}), rgba(${darkerR}, ${darkerG}, ${darkerB}, ${glassOpacity}))`
     themeGradient = `linear-gradient(135deg, rgb(${p.r}, ${p.g}, ${p.b}), rgb(${darkerR}, ${darkerG}, ${darkerB}))`
   }
@@ -311,6 +317,10 @@ const appStyle = computed(() => {
     '--theme-gradient': themeGradient,
     '--theme-color-light': `rgba(${appSettings.themeColor.r}, ${appSettings.themeColor.g}, ${appSettings.themeColor.b}, 0.1)`,
     '--theme-color-medium': `rgba(${appSettings.themeColor.r}, ${appSettings.themeColor.g}, ${appSettings.themeColor.b}, 0.2)`,
+    '--primary-color': `rgb(${p.r}, ${p.g}, ${p.b})`,
+    '--primary-rgb': `${p.r}, ${p.g}, ${p.b}`,
+    '--secondary-color': appSettings.themeColorMode === 'dual' ? `rgb(${appSettings.secondaryColor.r}, ${appSettings.secondaryColor.g}, ${appSettings.secondaryColor.b})` : `rgb(${p.r}, ${p.g}, ${p.b})`,
+    '--secondary-rgb': appSettings.themeColorMode === 'dual' ? `${appSettings.secondaryColor.r}, ${appSettings.secondaryColor.g}, ${appSettings.secondaryColor.b}` : `${p.r}, ${p.g}, ${p.b}`,
     '--window-opacity': appSettings.opacity / 100,
     '--glass-blur': `${appSettings.glassBlur}px`,
     '--glass-gradient': glassGradient,
@@ -326,13 +336,13 @@ const darkModeClass = computed(() => appSettings.darkMode ? 'dark-mode' : '')
 // 应用设置
 const applySettings = (settings) => {
   appSettings.themeColor = { ...settings.themeColor }
-  appSettings.themeColorMode = settings.themeColorMode || 'single'
-  appSettings.primaryColor = settings.primaryColor && settings.primaryColor.r !== undefined ? { ...settings.primaryColor } : { r: 255, g: 140, b: 0 }
-  appSettings.secondaryColor = settings.secondaryColor && settings.secondaryColor.r !== undefined ? { ...settings.secondaryColor } : { r: 255, g: 255, b: 255 }
+  appSettings.themeColorMode = settings.themeColorMode || 'dual'
+  appSettings.primaryColor = settings.primaryColor && settings.primaryColor.r !== undefined ? { ...settings.primaryColor } : { r: 255, g: 179, b: 71 }
+  appSettings.secondaryColor = settings.secondaryColor && settings.secondaryColor.r !== undefined ? { ...settings.secondaryColor } : { r: 255, g: 140, b: 0 }
   appSettings.opacity = settings.opacity
   appSettings.darkMode = settings.darkMode || false
   appSettings.glassBlur = settings.glassBlur !== undefined ? settings.glassBlur : 8
-  appSettings.colorScheme = settings.colorScheme || 'sky'
+  appSettings.colorScheme = settings.colorScheme || 'deskatom'
 
   // 应用透明度到 Electron 窗口
   if (window.electronAPI && window.electronAPI.setOpacity) {
@@ -343,11 +353,11 @@ const applySettings = (settings) => {
   }
 }
 
-const filterOptions = [
-  { value: 'all', label: '全部', icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="2"/></svg>' },
-  { value: 'pending', label: '未完成', icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2"/></svg>' },
-  { value: 'completed', label: '已完成', icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 8l3 3 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' }
-]
+const filterOptions = computed(() => [
+  { value: 'all', label: t('app.filterAll'), icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="2"/></svg>' },
+  { value: 'pending', label: t('app.filterPending'), icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2"/></svg>' },
+  { value: 'completed', label: t('app.filterCompleted'), icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 8l3 3 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' }
+])
 
 const totalTasks = computed(() => tasks.value.length)
 const completedTasks = computed(() => tasks.value.filter(task => task.completed).length)
@@ -451,7 +461,7 @@ const clearAllTasks = () => {
   
   confirmDialog.value = {
     show: true,
-    message: `确定要清空所有 ${tasks.value.length} 个任务吗？`,
+    message: t('app.confirmClearAll', { count: tasks.value.length }),
     onConfirm: () => {
       deletingTask.value = true
       tasks.value = []
@@ -478,7 +488,7 @@ const deleteTask = (id) => {
 
   confirmDialog.value = {
     show: true,
-    message: '确定删除此任务？',
+    message: t('app.confirmDelete'),
     onConfirm: () => {
       confirmDialog.value.show = false
       deletingTask.value = true
@@ -611,6 +621,11 @@ onMounted(() => {
   }
   loadTasksFromStorage()
   
+  const saved = localStorage.getItem('app-locale')
+  if (saved && (saved === 'zh' || saved === 'en')) {
+    locale.value = saved
+  }
+  
   // 加载设置
   if (settingsPanel.value) {
     settingsPanel.value.loadSettings()
@@ -632,13 +647,57 @@ onMounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  --theme-color: rgb(255, 140, 0);
-  --theme-color-light: rgba(255, 140, 0, 0.1);
-  --theme-color-medium: rgba(255, 140, 0, 0.2);
+  --theme-color: rgb(255, 179, 71);
+  --theme-color-light: rgba(255, 179, 71, 0.1);
+  --theme-color-medium: rgba(255, 179, 71, 0.2);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 420px 380px at 82% 6%, rgba(var(--primary-rgb, 255, 179, 71), 0.30) 0%, transparent 70%),
+    radial-gradient(ellipse 340px 300px at 4% 48%, rgba(var(--secondary-rgb, 255, 140, 0), 0.24) 0%, transparent 68%),
+    radial-gradient(ellipse 280px 240px at 70% 86%, rgba(var(--primary-rgb, 255, 179, 71), 0.18) 0%, transparent 65%),
+    linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.app-container::before {
+  content: '';
+  position: absolute;
+  top: 18%;
+  right: -4%;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--secondary-rgb, 255, 140, 0), 0.20) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  animation: blob-float-1 9s ease-in-out infinite;
+}
+.app-container::after {
+  content: '';
+  position: absolute;
+  bottom: 22%;
+  left: -3%;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--primary-rgb, 255, 179, 71), 0.16) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  animation: blob-float-2 11s ease-in-out infinite reverse;
+}
+
+@keyframes blob-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-16px, 14px) scale(1.05); }
+  66% { transform: translate(12px, -8px) scale(0.96); }
+}
+@keyframes blob-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(14px, -10px) scale(1.04); }
+  66% { transform: translate(-12px, 14px) scale(0.97); }
 }
 
 /* 毛玻璃卡片样式 */
@@ -654,6 +713,10 @@ onMounted(() => {
 .app-container.focus-mode-active {
   background: transparent;
   box-shadow: none;
+}
+.app-container.focus-mode-active::before,
+.app-container.focus-mode-active::after {
+  display: none;
 }
 
 .content-wrapper {
@@ -705,6 +768,8 @@ onMounted(() => {
   border: 2px solid transparent;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .input-wrapper:focus-within {
@@ -747,27 +812,44 @@ onMounted(() => {
   height: clamp(32px, 8vw, 40px);
   min-width: 32px;
   min-height: 32px;
-  background: var(--theme-color);
-  border: 1px solid var(--text-on-white);
-  border-radius: clamp(8px, 2vw, 12px);
+  background: var(--theme-gradient, var(--theme-color));
+  border: none;
+  border-radius: clamp(10px, 2vw, 14px);
   color: var(--text-on-white, white);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   flex-shrink: 0;
+  position: relative;
+  box-shadow:
+    0 3px 0 rgba(var(--primary-rgb, 255, 140, 0), 0.35),
+    0 4px 12px rgba(var(--primary-rgb, 255, 140, 0), 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
 }
 
 .add-btn svg {
   width: clamp(16px, 4vw, 20px);
   height: clamp(16px, 4vw, 20px);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
 }
 
 .add-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px var(--theme-color-medium);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow:
+    0 6px 0 rgba(var(--primary-rgb, 255, 140, 0), 0.30),
+    0 8px 24px rgba(var(--primary-rgb, 255, 140, 0), 0.35),
+    0 0 20px rgba(var(--primary-rgb, 255, 140, 0), 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.08);
 }
 
 .add-btn:active {
-  transform: scale(0.95);
+  transform: translateY(2px) scale(0.98);
+  box-shadow:
+    0 1px 0 rgba(var(--primary-rgb, 255, 140, 0), 0.35),
+    0 2px 6px rgba(var(--primary-rgb, 255, 140, 0), 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
 .stats-header-actions {
@@ -775,6 +857,8 @@ onMounted(() => {
   justify-content: flex-end;
   margin-bottom: 12px;
   gap: 8px;
+  position: relative;
+  z-index: 1;
 }
 
 .focus-mode-btn {
@@ -840,6 +924,8 @@ onMounted(() => {
   margin-bottom: 24px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
 }
 
 /* 毛玻璃效果 */
@@ -852,6 +938,8 @@ onMounted(() => {
   border-radius: 16px;
   box-shadow: 0 5px 32px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.4);
+  position: relative;
+  z-index: 1;
 }
 
 .stats-header {
@@ -954,6 +1042,8 @@ onMounted(() => {
   padding: 8px;
   border-radius: 16px;
   box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 1;
 }
 
 @media (max-width: 600px) {
@@ -1060,6 +1150,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   flex: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .tasks-list {
@@ -1506,7 +1598,17 @@ onMounted(() => {
 
 /* 暗夜模式 - 基础背景 */
 .dark-mode .app-container {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  background:
+    radial-gradient(ellipse 420px 380px at 82% 6%, rgba(var(--primary-rgb, 255, 179, 71), 0.20) 0%, transparent 70%),
+    radial-gradient(ellipse 340px 300px at 4% 48%, rgba(var(--secondary-rgb, 255, 140, 0), 0.15) 0%, transparent 68%),
+    radial-gradient(ellipse 280px 240px at 70% 86%, rgba(var(--primary-rgb, 255, 179, 71), 0.10) 0%, transparent 65%),
+    linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+.dark-mode .app-container::before {
+  background: radial-gradient(circle, rgba(var(--secondary-rgb, 255, 140, 0), 0.13) 0%, transparent 70%);
+}
+.dark-mode .app-container::after {
+  background: radial-gradient(circle, rgba(var(--primary-rgb, 255, 179, 71), 0.10) 0%, transparent 70%);
 }
 
 /* 暗夜模式 - 滚动条 */
@@ -1728,13 +1830,36 @@ onMounted(() => {
   background: rgba(255, 140, 0, 0.9);
 }
 
+.dark-mode .add-btn {
+  box-shadow:
+    0 3px 0 rgba(var(--primary-rgb, 255, 140, 0), 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+}
+.dark-mode .add-btn:hover {
+  box-shadow:
+    0 6px 0 rgba(var(--primary-rgb, 255, 140, 0), 0.40),
+    0 8px 24px rgba(0, 0, 0, 0.45),
+    0 0 20px rgba(var(--primary-rgb, 255, 140, 0), 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+}
+.dark-mode .add-btn:active {
+  box-shadow:
+    0 1px 0 rgba(var(--primary-rgb, 255, 140, 0), 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 2px 4px rgba(0, 0, 0, 0.18);
+}
+
 /* 暗夜模式 - 语音按钮 */
 .dark-mode :deep(.voice-btn) {
-  color: #fbbf24;
+  color: var(--theme-color, #fbbf24);
 }
 
 .dark-mode :deep(.voice-btn:hover:not(.disabled)) {
-  background: rgba(251, 191, 36, 0.1);
+  background: var(--theme-color-light, rgba(251, 191, 36, 0.1));
 }
 
 .dark-mode :deep(.voice-btn.recording) {

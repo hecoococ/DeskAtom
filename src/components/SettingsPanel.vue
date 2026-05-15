@@ -7,7 +7,7 @@
             <path d="M10 12C11.1046 12 12 11.1046 12 10C12 8.89543 11.1046 8 10 8C8.89543 8 8 8.89543 8 10C8 11.1046 8.89543 12 10 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             <path d="M16.4 10C16.4 10.3714 16.3571 10.7286 16.2857 11.0714L18.1429 12.5714C18.2857 12.7 18.3214 12.9286 18.2143 13.1143L16.3857 16.1143C16.2786 16.3 16.0429 16.3714 15.8571 16.2857L13.6857 15.2571C13.1143 15.6857 12.4857 16.0286 11.8 16.2714L11.4571 18.5714C11.4286 18.7857 11.2429 18.9286 11.0286 18.9286H7.97143C7.75714 18.9286 7.57143 18.7857 7.54286 18.5714L7.2 16.2714C6.51429 16.0286 5.88571 15.6857 5.31429 15.2571L3.14286 16.2857C2.95714 16.3714 2.72143 16.3 2.61429 16.1143L0.785714 13.1143C0.678571 12.9286 0.714286 12.7 0.857143 12.5714L2.71429 11.0714C2.64286 10.7286 2.6 10.3714 2.6 10C2.6 9.62857 2.64286 9.27143 2.71429 8.92857L0.857143 7.42857C0.714286 7.3 0.678571 7.07143 0.785714 6.88571L2.61429 3.88571C2.72143 3.7 2.95714 3.62857 3.14286 3.71429L5.31429 4.74286C5.88571 4.31429 6.51429 3.97143 7.2 3.72857L7.54286 1.42857C7.57143 1.21429 7.75714 1.07143 7.97143 1.07143H11.0286C11.2429 1.07143 11.4286 1.21429 11.4571 1.42857L11.8 3.72857C12.4857 3.97143 13.1143 4.31429 13.6857 4.74286L15.8571 3.71429C16.0429 3.62857 16.2786 3.7 16.3857 3.88571L18.2143 6.88571C18.3214 7.07143 18.2857 7.3 18.1429 7.42857L16.2857 8.92857C16.3571 9.27143 16.4 9.62857 16.4 10Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          设置
+          {{ t('settings.title') }}
         </h3>
         <button class="close-btn" @click="close">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -20,12 +20,12 @@
         <!-- 暗夜模式 -->
         <div class="setting-section">
           <div class="dark-mode-row">
-            <h4 class="section-title">暗夜模式</h4>
+            <h4 class="section-title">{{ t('settings.darkMode') }}</h4>
             <button 
               class="dark-mode-toggle"
               :class="{ active: settings.darkMode }"
               @click="toggleDarkMode"
-              title="切换暗夜模式"
+              :title="t('settings.darkModeToggle')"
             >
               <svg v-if="!settings.darkMode" width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -41,7 +41,7 @@
         <!-- 主题颜色设置 -->
         <div class="setting-section">
           <div class="color-mode-header">
-            <h4 class="section-title">主题颜色</h4>
+            <h4 class="section-title">{{ t('settings.themeColor') }}</h4>
             <div class="color-mode-toggle">
               <div class="mode-slider" :class="settings.themeColorMode"></div>
               <button
@@ -49,14 +49,14 @@
                 :class="{ active: settings.themeColorMode === 'single' }"
                 @click="toggleColorMode('single')"
               >
-                单色
+                {{ t('settings.colorSingle') }}
               </button>
               <button
                 class="mode-btn"
                 :class="{ active: settings.themeColorMode === 'dual' }"
                 @click="toggleColorMode('dual')"
               >
-                双色
+                {{ t('settings.colorDual') }}
               </button>
             </div>
           </div>
@@ -93,7 +93,7 @@
             <!-- 双色调色板 -->
             <div class="dual-pickers">
               <div class="picker-group">
-                <span class="picker-label">主色</span>
+                <span class="picker-label">{{ t('settings.primaryColor') }}</span>
                 <ColorPicker
                   :model-value="settings.primaryColor"
                   :dark-mode="darkMode"
@@ -101,7 +101,7 @@
                 />
               </div>
               <div class="picker-group">
-                <span class="picker-label">辅色</span>
+                <span class="picker-label">{{ t('settings.secondaryColor') }}</span>
                 <ColorPicker
                   :model-value="settings.secondaryColor"
                   :dark-mode="darkMode"
@@ -114,7 +114,7 @@
 
         <!-- 透明度设置 -->
         <div class="setting-section">
-          <h4 class="section-title">窗口透明度</h4>
+          <h4 class="section-title">{{ t('settings.windowOpacity') }}</h4>
           <OpacitySlider
             :model-value="settings.opacity"
             :dark-mode="darkMode"
@@ -122,54 +122,77 @@
           />
         </div>
 
-        <!-- 毛玻璃模糊度 -->
-        <div class="setting-section">
-          <h4 class="section-title">毛玻璃模糊度</h4>
+        <!-- 毛玻璃模糊度 (暂时隐藏，未来可能恢复) -->
+        <!-- <div class="setting-section">
+          <h4 class="section-title">{{ t('settings.glassBlur') }}</h4>
           <GlassBlurSlider
             :model-value="settings.glassBlur"
             :dark-mode="darkMode"
             @update:model-value="updateGlassBlur"
           />
+        </div> -->
+
+        <!-- 语言设置 -->
+        <div class="setting-section">
+          <h4 class="section-title">{{ t('settings.language') }}</h4>
+          <div class="language-selector">
+            <button
+              v-for="langOpt in languageOptions"
+              :key="langOpt.value"
+              class="lang-btn"
+              :class="{ active: locale === langOpt.value }"
+              @click="setLocale(langOpt.value)"
+            >
+              {{ langOpt.label }}
+            </button>
+          </div>
         </div>
 
         <!-- 阿里云语音服务配置 -->
         <div class="setting-section">
-          <h4 class="section-title">阿里云语音服务</h4>
-          <div class="voice-config">
+          <button class="collapsible-header" :class="{ expanded: voiceSectionExpanded }" @click="voiceSectionExpanded = !voiceSectionExpanded">
+            <span>{{ t('settings.voiceService') }}</span>
+            <svg class="expand-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <transition name="collapse">
+            <div v-if="voiceSectionExpanded" class="voice-config">
             <div class="voice-config-row">
-              <label>AccessKey ID</label>
+              <label>{{ t('settings.accessKeyIdLabel') }}</label>
               <input
                 v-model="voiceAccessKeyId"
                 type="text"
-                placeholder="请输入访问密钥ID"
+                :placeholder="t('settings.accessKeyIdPlaceholder')"
                 class="voice-input"
               />
             </div>
             <div class="voice-config-row">
-              <label>AccessKey Secret</label>
+              <label>{{ t('settings.accessKeySecretLabel') }}</label>
               <input
                 v-model="voiceAccessKeySecret"
                 type="password"
-                placeholder="请输入访问密钥密码"
+                :placeholder="t('settings.accessKeySecretPlaceholder')"
                 class="voice-input"
               />
             </div>
             <div class="voice-config-row">
-              <label>AppKey</label>
+              <label>{{ t('settings.appKeyLabel') }}</label>
               <input
                 v-model="voiceAppkey"
                 type="text"
-                placeholder="请输入AppKey"
+                :placeholder="t('settings.appKeyPlaceholder')"
                 class="voice-input"
               />
             </div>
             <button class="save-voice-btn" @click="saveVoiceSettings">
-              保存配置
+              {{ t('settings.saveConfig') }}
             </button>
             <button class="test-voice-btn" @click="openTestPage">
-              打开测试页面
+              {{ t('settings.openTestPage') }}
             </button>
           </div>
+          </transition>
         </div>
 
         <!-- 重置按钮 -->
@@ -179,7 +202,7 @@
               <path d="M2 8C2 11.3137 4.68629 14 8 14C11.3137 14 14 11.3137 14 8C14 4.68629 11.3137 2 8 2C5.96183 2 4.16841 3.06329 3.08397 4.6667" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               <path d="M2 2V5H5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            恢复默认设置
+            {{ t('settings.resetDefaults') }}
           </button>
         </div>
 
@@ -204,10 +227,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import ColorPicker from './ColorPicker.vue'
 import OpacitySlider from './OpacitySlider.vue'
 import GlassBlurSlider from './GlassBlurSlider.vue'
+import { useI18n } from '../i18n/index.js'
+import { localeNames } from '../i18n/locales.js'
+
+const { t, locale, setLocale } = useI18n()
 
 const props = defineProps({
   visible: {
@@ -226,6 +253,7 @@ const emit = defineEmits(['update:visible', 'settings-change'])
 const voiceAccessKeyId = ref('')
 const voiceAccessKeySecret = ref('')
 const voiceAppkey = ref('')
+const voiceSectionExpanded = ref(false)
 
 // Toast 提示
 const toast = reactive({
@@ -247,12 +275,12 @@ function showToast(message, type = 'success') {
 
 const saveVoiceSettings = async () => {
   if (!voiceAccessKeyId.value || !voiceAccessKeySecret.value) {
-    showToast('请填写 AccessKey ID 和 AccessKey Secret', 'error')
+    showToast(t('settings.fillAccessKeys'), 'error')
     return
   }
 
   if (!voiceAppkey.value) {
-    showToast('请填写 AppKey', 'error')
+    showToast(t('settings.fillAppKey'), 'error')
     return
   }
 
@@ -268,7 +296,7 @@ const saveVoiceSettings = async () => {
     await window.electronAPI.voiceConfig(config)
   }
 
-  showToast('语音配置已保存', 'success')
+  showToast(t('settings.voiceConfigSaved'), 'success')
 }
 
 const openTestPage = async () => {
@@ -287,7 +315,7 @@ const loadVoiceSettings = () => {
       voiceAccessKeySecret.value = config.accessKeySecret || ''
       voiceAppkey.value = config.appkey || ''
     } catch (e) {
-      console.error('加载语音配置失败:', e)
+      console.error(t('settings.loadVoiceConfigFailed'), e)
     }
   }
 }
@@ -301,14 +329,14 @@ watch(() => props.visible, (newVal) => {
 
 // 默认设置
 const defaultSettings = {
-  themeColor: { r: 255, g: 140, b: 0 }, // 橙色 #FF8C00
-  themeColorMode: 'single', // 'single' | 'dual'
-  primaryColor: { r: 255, g: 140, b: 0 },
-  secondaryColor: { r: 255, g: 255, b: 255 },
+  themeColor: { r: 255, g: 179, b: 71 },
+  themeColorMode: 'dual',
+  primaryColor: { r: 255, g: 179, b: 71 },
+  secondaryColor: { r: 255, g: 140, b: 0 },
   opacity: 100,
   darkMode: false,
   glassBlur: 8,
-  colorScheme: 'sky'
+  colorScheme: 'deskatom'
 }
 
 // 当前设置
@@ -323,15 +351,21 @@ const settings = reactive({
   colorScheme: defaultSettings.colorScheme
 })
 
-// 配色方案
-const colorSchemes = [
-  { id: 'sky', name: '天空蓝', colors: ['#a1c4fd', '#c2e9fb'] },
-  { id: 'purple', name: '紫粉', colors: ['#9b5de5', '#f15bb5'] },
-  { id: 'coral', name: '珊瑚橙', colors: ['#ff7e5f', '#feb47b'] },
-  { id: 'mint', name: '薄荷绿', colors: ['#00b09b', '#96c93d'] },
-  { id: 'ocean', name: '海洋蓝', colors: ['#0f4c75', '#3282b8'] },
-  { id: 'indigo', name: '靛蓝紫', colors: ['#4361ee', '#3a0ca3'] }
+const languageOptions = [
+  { value: 'zh', label: localeNames.zh },
+  { value: 'en', label: localeNames.en }
 ]
+
+const colorSchemes = computed(() => [
+  { id: 'deskatom', name: t('colorSchemes.deskatom'), colors: ['#ffb347', '#ff8c00'] },
+  { id: 'sky', name: t('colorSchemes.sky'), colors: ['#a1c4fd', '#c2e9fb'] },
+  { id: 'purple', name: t('colorSchemes.purple'), colors: ['#9b5de5', '#f15bb5'] },
+  { id: 'coral', name: t('colorSchemes.coral'), colors: ['#ff7e5f', '#feb47b'] },
+  { id: 'mint', name: t('colorSchemes.mint'), colors: ['#00b09b', '#96c93d'] },
+  { id: 'ocean', name: t('colorSchemes.ocean'), colors: ['#0f4c75', '#3282b8'] },
+  { id: 'indigo', name: t('colorSchemes.indigo'), colors: ['#4361ee', '#3a0ca3'] },
+  { id: 'cyber', name: t('colorSchemes.cyber'), colors: ['#34ffdc', '#3a0ca3'] }
+])
 
 // 从本地存储加载设置
 const loadSettings = () => {
@@ -348,7 +382,7 @@ const loadSettings = () => {
       if (parsed.glassBlur !== undefined) settings.glassBlur = parsed.glassBlur
       if (parsed.colorScheme) settings.colorScheme = parsed.colorScheme
     } catch (e) {
-      console.error('加载设置失败:', e)
+      console.error(t('settings.loadSettingsFailed'), e)
     }
   }
 }
@@ -476,6 +510,7 @@ defineExpose({
   justify-content: center;
   z-index: 1000;
   animation: fadeIn 0.2s ease;
+  border-radius: 12px;
 }
 
 @keyframes fadeIn {
@@ -1027,6 +1062,115 @@ defineExpose({
 
 .dark-mode .picker-label {
   color: #94a3b8;
+}
+
+/* 语言选择器样式 */
+.language-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.lang-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: white;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.lang-btn:hover {
+  border-color: var(--theme-color, #ff8c00);
+  color: var(--text-on-color, var(--theme-color, #ff8c00));
+}
+
+.lang-btn.active {
+  border-color: var(--theme-color, #ff8c00);
+  background: var(--theme-color, #ff8c00);
+  color: var(--text-on-white, white);
+  box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
+}
+
+/* 可折叠区域头部 */
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 0;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.collapsible-header:hover {
+  color: var(--text-on-color, var(--theme-color, #ff8c00));
+}
+
+.collapsible-header .expand-arrow {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.collapsible-header.expanded .expand-arrow {
+  transform: rotate(180deg);
+}
+
+/* 折叠展开动画 */
+.collapse-enter-active,
+.collapse-leave-active {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.collapse-enter-from,
+.collapse-leave-to {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.collapse-enter-to,
+.collapse-leave-from {
+  opacity: 1;
+  max-height: 400px;
+}
+
+/* 暗夜模式 - 折叠头部 */
+.dark-mode .collapsible-header {
+  color: #94a3b8;
+}
+
+.dark-mode .collapsible-header:hover {
+  color: var(--theme-color, #ff8c00);
+}
+
+/* 暗夜模式 - 语言选择器 */
+.dark-mode .lang-btn {
+  background: #334155;
+  border-color: #475569;
+  color: #94a3b8;
+}
+
+.dark-mode .lang-btn:hover {
+  border-color: var(--theme-color, #ff8c00);
+  color: var(--theme-color, #ff8c00);
+}
+
+.dark-mode .lang-btn.active {
+  border-color: var(--theme-color, #ff8c00);
+  background: var(--theme-color, #ff8c00);
+  color: var(--text-on-white, white);
 }
 
 /* ==================== Toast 提示 ==================== */

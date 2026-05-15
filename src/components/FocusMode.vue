@@ -16,7 +16,7 @@
           <button
             @click="toggleTask(task.id)"
             class="status-dot"
-            title="标记完成"
+            :title="t('focusMode.markComplete')"
           >
             <svg class="check-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
               <path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -27,21 +27,21 @@
         <button
           @click="deleteTask(task.id)"
           class="delete-btn"
-          title="删除任务"
+          :title="t('focusMode.deleteTask')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
       </div>
-      
+
       <!-- 空状态 -->
       <div v-if="pendingTasks.length === 0" class="focus-empty">
         <div class="focus-empty-content">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" class="focus-empty-icon">
             <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span>太棒了！所有任务都已完成</span>
+          <span>{{ t('focusMode.allDone') }}</span>
         </div>
       </div>
     </div>
@@ -51,7 +51,7 @@
       class="scrollbar-exit"
       :style="scrollbarExitStyle"
       @click="$emit('exit')"
-      title="返回主界面"
+      :title="t('focusMode.backToMain')"
     >
       <svg class="exit-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none">
         <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -62,6 +62,9 @@
 
 <script setup>
 import { computed, toRefs, ref, onMounted, onUnmounted } from 'vue'
+import { useI18n } from '../i18n/index.js'
+
+const { t } = useI18n()
 
 const props = defineProps({
   tasks: {

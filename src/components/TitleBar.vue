@@ -18,7 +18,7 @@
       <button 
         class="control-btn settings-btn" 
         @click="openSettings"
-        title="设置"
+        :title="t('titleBar.settings')"
       >
         <svg class="settings-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M7 8.5C7.82843 8.5 8.5 7.82843 8.5 7C8.5 6.17157 7.82843 5.5 7 5.5C6.17157 5.5 5.5 6.17157 5.5 7C5.5 7.82843 6.17157 8.5 7 8.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -28,7 +28,7 @@
       <button 
         class="control-btn minimize-btn" 
         @click="minimizeWindow"
-        title="隐藏到边缘"
+        :title="t('titleBar.minimize')"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <rect x="2" y="6" width="10" height="2" rx="1" fill="currentColor"/>
@@ -37,7 +37,7 @@
       <button 
         class="control-btn close-btn" 
         @click="closeWindow"
-        title="关闭应用"
+        :title="t('titleBar.close')"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
           <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -49,6 +49,9 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from '../i18n/index.js'
+
+const { t } = useI18n()
 
 const props = defineProps({
   pendingCount: {
@@ -368,8 +371,11 @@ const openSettings = () => {
 }
 
 .dark-mode .title-text {
-  color: var(--theme-color, #ff8c00);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: var(--theme-gradient, linear-gradient(135deg, #ffb347 0%, #ff8c00 100%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
 }
 
 .dark-mode .badge {

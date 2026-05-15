@@ -2,24 +2,16 @@
   <button @click="toggleRecording"
     :class="['voice-btn', { recording: isRecording, disabled: !isConfigured || isConnecting }]"
     :disabled="!isConfigured || isConnecting" :title="buttonTitle">
-    <svg v-if="!isRecording" width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round" />
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-        stroke-linejoin="round" />
-      <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-        stroke-linejoin="round" />
-      <line x1="8" y1="23" x2="16" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-        stroke-linejoin="round" />
-    </svg>
-    <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-      <rect x="6" y="6" width="12" height="12" rx="2" />
-    </svg>
+    <div v-if="!isRecording" class="voice-icon-wrapper"></div>
+    <div v-else class="voice-icon-wrapper recording-icon"></div>
   </button>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useI18n } from '../i18n/index.js'
+
+const { t } = useI18n()
 
 const emit = defineEmits(['result', 'error', 'start', 'end', 'autoAdd'])
 
@@ -71,9 +63,9 @@ function playBeep(type = 'start') {
 }
 
 const buttonTitle = computed(() => {
-  if (!isConfigured.value) return '请先配置阿里云语音服务'
-  if (isConnecting.value) return '正在连接...'
-  return isRecording.value ? '点击停止录音' : '点击开始语音输入'
+  if (!isConfigured.value) return t('voiceInput.configureFirst')
+  if (isConnecting.value) return t('voiceInput.connecting')
+  return isRecording.value ? t('voiceInput.clickStop') : t('voiceInput.clickStart')
 })
 
 function generateUUID32() {
@@ -243,7 +235,7 @@ function initVoiceWorker() {
     isConnecting.value = false
     canSendAudio = false
     clearAudioQueue()
-    emit('error', 'Worker 错误')
+    emit('error', t('voiceInput.electronApiUnavailable') + ' Worker')
     emit('end')
   }
 }
@@ -314,7 +306,7 @@ function stopMicCapture() {
 
 async function startRecording() {
   if (!window.electronAPI) {
-    emit('error', 'electronAPI 不可用')
+    emit('error', t('voiceInput.electronApiUnavailable'))
     return
   }
 
@@ -325,14 +317,14 @@ async function startRecording() {
 
     const saved = localStorage.getItem('voice-settings')
     if (!saved) {
-      emit('error', '请先配置阿里云语音服务')
+      emit('error', t('voiceInput.configureFirst'))
       isConnecting.value = false
       return
     }
 
     const config = JSON.parse(saved)
     if (!config.accessKeyId || !config.accessKeySecret || !config.appkey) {
-      emit('error', '请先配置阿里云语音服务')
+      emit('error', t('voiceInput.configureFirst'))
       isConnecting.value = false
       return
     }
@@ -340,7 +332,7 @@ async function startRecording() {
     console.log('获取 Token...')
     const tokenResult = await window.electronAPI.getVoiceToken(config)
     if (!tokenResult.success) {
-      emit('error', tokenResult.error || '获取 Token 失败')
+      emit('error', tokenResult.error || t('voiceInput.tokenFailed'))
       isConnecting.value = false
       return
     }
@@ -368,7 +360,7 @@ async function startRecording() {
     isRecording.value = false
     canSendAudio = false
     clearAudioQueue()
-    emit('error', error?.message || '启动失败')
+    emit('error', error?.message || t('voiceInput.startFailed'))
   }
 }
 
@@ -468,6 +460,28 @@ defineExpose({
 .voice-btn.disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+.voice-icon-wrapper {
+  width: 20px;
+  height: 20px;
+  background: var(--theme-gradient, var(--theme-color));
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.voice-icon-wrapper:not(.recording-icon) {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cline x1='12' y1='19' x2='12' y2='23' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='8' y1='23' x2='16' y2='23' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cline x1='12' y1='19' x2='12' y2='23' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3Cline x1='8' y1='23' x2='16' y2='23' stroke='black' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.voice-icon-wrapper.recording-icon {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Crect x='6' y='6' width='12' height='12' rx='2' fill='black'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Crect x='6' y='6' width='12' height='12' rx='2' fill='black'/%3E%3C/svg%3E");
 }
 
 .voice-btn.recording {

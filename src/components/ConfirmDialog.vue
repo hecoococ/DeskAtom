@@ -6,14 +6,14 @@
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="modal-icon">
             <path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <h3>确认删除</h3>
+          <h3>{{ t('dialog.confirmDelete') }}</h3>
         </div>
         <div class="modal-body">
           <p>{{ message }}</p>
         </div>
         <div class="modal-footer">
-          <button @click="$emit('cancel')" class="btn btn-secondary">取消</button>
-          <button @click="$emit('confirm')" class="btn btn-danger">确定</button>
+          <button @click="$emit('cancel')" class="btn btn-secondary">{{ t('dialog.cancel') }}</button>
+          <button @click="$emit('confirm')" class="btn btn-danger">{{ t('dialog.confirm') }}</button>
         </div>
       </div>
     </div>
@@ -21,6 +21,10 @@
 </template>
 
 <script setup>
+import { useI18n } from '../i18n/index.js'
+
+const { t } = useI18n()
+
 defineProps({
   show: {
     type: Boolean,

@@ -6,7 +6,7 @@
         :class="['status-btn', task.completed ? 'completed' : 'pending']"
       >
         <span class="status-icon">{{ task.completed ? '✓' : '●' }}</span>
-        {{ task.completed ? '完成' : '未完成' }}
+        {{ task.completed ? t('todoItem.statusCompleted') : t('todoItem.statusPending') }}
       </button>
       <template v-if="!isEditing">
         <span class="task-text">{{ task.text }}</span>
@@ -26,7 +26,7 @@
         <button
           @click="startEdit"
           class="edit-btn"
-          title="编辑任务"
+          :title="t('todoItem.editTask')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -36,7 +36,7 @@
         <button
           @click="$emit('delete', task.id)"
           class="delete-btn"
-          title="删除任务"
+          :title="t('todoItem.deleteTask')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -47,7 +47,7 @@
         <button
           @click="cancelEdit"
           class="cancel-btn"
-          title="取消"
+          :title="t('todoItem.cancel')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -56,7 +56,7 @@
         <button
           @click="saveEdit"
           class="save-btn"
-          title="保存"
+          :title="t('todoItem.save')"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -69,6 +69,9 @@
 
 <script setup>
 import { ref, nextTick } from 'vue'
+import { useI18n } from '../i18n/index.js'
+
+const { t } = useI18n()
 
 const props = defineProps({
   task: {
