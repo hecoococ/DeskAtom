@@ -50,13 +50,20 @@
           </div>
           <div class="stats-content">
             <div class="progress-section">
-              <div class="progress-bar">
-                <div 
-                  class="progress-fill" 
-                  :style="{ width: progressPercentage + '%' }"
-                ></div>
+              <div class="progress-info-row">
+                <span class="progress-detail">{{ t('app.progressDetail', { completed: completedTasks, total: totalTasks }) }}</span>
+                <span class="progress-text">{{ progressPercentage }}{{ t('app.completePercent') }}</span>
               </div>
-              <div class="progress-text">{{ progressPercentage }}{{ t('app.completePercent') }}</div>
+              <div class="segmented-progress" ref="progressContainerRef">
+                <div v-for="(row, rowIndex) in progressRows" :key="rowIndex" class="progress-row">
+                  <div
+                    v-for="(seg, segIndex) in row.segments"
+                    :key="segIndex"
+                    class="progress-segment"
+                    :class="{ filled: seg.filled, ghost: seg.ghost }"
+                  ></div>
+                </div>
+              </div>
             </div>
             <div class="stats-grid">
               <div class="stat-item">
@@ -367,6 +374,54 @@ const progressPercentage = computed(() => {
   return Math.round((completedTasks.value / totalTasks.value) * 100)
 })
 
+const MIN_SEGMENT_WIDTH = 20
+const progressContainerWidth = ref(400)
+const progressContainerRef = ref(null)
+
+const dynamicMaxSegments = computed(() => {
+  const availableWidth = progressContainerWidth.value - 40
+  return Math.max(5, Math.floor(availableWidth / MIN_SEGMENT_WIDTH))
+})
+
+const progressRows = computed(() => {
+  const total = totalTasks.value
+  const completed = completedTasks.value
+  if (total === 0) return []
+
+  const maxPerRow = dynamicMaxSegments.value
+  const needsWrap = total > maxPerRow
+
+  if (!needsWrap) {
+    return [{
+      segments: Array.from({ length: total }, (_, s) => ({
+        filled: s < completed,
+        ghost: false
+      }))
+    }]
+  }
+
+  const numRows = Math.ceil(total / maxPerRow)
+  const basePerRow = Math.floor(total / numRows)
+  const extraRows = total % numRows
+
+  const rows = []
+  let remainingCompleted = completed
+
+  for (let r = 0; r < numRows; r++) {
+    const segCount = basePerRow + (r >= numRows - extraRows ? 1 : 0)
+    const rowCompleted = Math.min(segCount, remainingCompleted)
+    remainingCompleted -= rowCompleted
+
+    const segments = Array.from({ length: segCount }, (_, s) => ({
+      filled: s < rowCompleted,
+      ghost: false
+    }))
+    rows.push({ segments })
+  }
+
+  return rows
+})
+
 const filteredTasks = computed(() => {
   switch (filter.value) {
     case 'pending':
@@ -638,6 +693,17 @@ onMounted(() => {
         console.error('加载设置失败:', e)
       }
     }
+  }
+
+  const resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.contentRect.width > 0) {
+        progressContainerWidth.value = entry.contentRect.width
+      }
+    }
+  })
+  if (progressContainerRef.value) {
+    resizeObserver.observe(progressContainerRef.value)
   }
 })
 </script>
@@ -963,34 +1029,72 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
 }
 
 .progress-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.progress-bar {
   width: 100%;
-  height: 8px;
-  background: #e2e8f0;
-  border-radius: 4px;
-  overflow: hidden;
 }
 
-.progress-fill {
-  height: 100%;
-  background: var(--text-on-color, var(--theme-color));
-  border-radius: 4px;
-  transition: width 0.5s ease;
+.progress-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.progress-detail {
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 80px;
 }
 
 .progress-text {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: #64748b;
-  text-align: right;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.segmented-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.progress-row {
+  display: flex;
+  width: 100%;
+  gap: 3px;
+}
+
+.progress-segment {
+  flex: 1 1 0%;
+  min-width: 0;
+  height: 8px;
+  border-radius: 2px;
+  background: #e2e8f0;
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.progress-segment.filled {
+  background: var(--text-on-color, var(--theme-color));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.progress-segment.ghost {
+  opacity: 0.15;
 }
 
 .stats-grid {
@@ -1016,7 +1120,7 @@ onMounted(() => {
 }
 
 .stat-value.total {
-  color: var(--text-on-color, var(--theme-color));
+  color: #475569;
 }
 
 .stat-value.completed {
@@ -1024,7 +1128,7 @@ onMounted(() => {
 }
 
 .stat-value.pending {
-  color: #f59e0b;
+  color: #ef6c00;
 }
 
 .stat-label {
@@ -1674,6 +1778,22 @@ onMounted(() => {
   color: #cbd5e1;
 }
 
+.dark-mode .progress-detail {
+  color: #64748b;
+}
+
+.dark-mode .progress-segment {
+  background: #334155;
+}
+
+.dark-mode .progress-segment.filled {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.dark-mode .progress-segment.ghost {
+  opacity: 0.08;
+}
+
 .dark-mode .progress-label {
   color: #94a3b8;
 }
@@ -1697,6 +1817,14 @@ onMounted(() => {
 
 .dark-mode .stat-label {
   color: #94a3b8;
+}
+
+.dark-mode .stat-value.total {
+  color: #94a3b8;
+}
+
+.dark-mode .stat-value.pending {
+  color: #fb923c;
 }
 
 /* 暗夜模式 - 筛选器 */
