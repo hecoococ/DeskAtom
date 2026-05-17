@@ -374,7 +374,7 @@ const progressPercentage = computed(() => {
   return Math.round((completedTasks.value / totalTasks.value) * 100)
 })
 
-const MIN_SEGMENT_WIDTH = 20
+const MIN_SEGMENT_WIDTH = 50
 const progressContainerWidth = ref(400)
 const progressContainerRef = ref(null)
 
@@ -1787,6 +1787,7 @@ onMounted(() => {
 }
 
 .dark-mode .progress-segment.filled {
+  background: var(--theme-color);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 

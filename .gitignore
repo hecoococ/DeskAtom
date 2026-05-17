@@ -92,3 +92,5 @@ coverage/
 .eslintcache
 .stylelintcache
 deskatom-website
+screenshots/
+make_transparent.py
