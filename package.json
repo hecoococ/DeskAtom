@@ -1,6 +1,6 @@
 {
   "name": "deskatom",
-  "version": "2.6.2",
+  "version": "2.7.0",
   "type": "module",
   "description": "DeskAtom - 现代化的任务管理桌面应用",
   "author": "DeskAtom",
@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "mcp:start": "node electron/mcpServer.js",
     "electron:dev": "concurrently \"pnpm dev\" \"wait-on http://localhost:1420 && cross-env NODE_ENV=development electron .\"",
     "electron:build": "pnpm build && cross-env USE_NPM=true CSC_IDENTITY_AUTO_DISCOVERY=false ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ electron-builder",
     "test": "vitest",
@@ -17,9 +18,11 @@
   },
   "dependencies": {
     "@alicloud/pop-core": "^1.8.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "alibabacloud-nls": "^1.0.4",
     "vue": "^3.4.21",
-    "ws": "^8.20.0"
+    "ws": "^8.20.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.4",
@@ -37,9 +40,9 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-      "npmRebuild": false,
-  "nodeGypRebuild": false,
-  "buildDependenciesFromSource": false,
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
     "electronDownload": {
       "mirror": "https://npmmirror.com/mirrors/electron/"
     },

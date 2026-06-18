@@ -289,12 +289,28 @@ const deleteTask = (id) => {
   saveTasksToStorage(updatedTasks)
 }
 
+const serializeTasks = (taskList) => {
+  return taskList.map((task) => ({
+    id: Number(task.id),
+    text: String(task.text || ''),
+    completed: Boolean(task.completed)
+  }))
+}
+
 // 保存到本地存储
 const saveTasksToStorage = (tasks) => {
+  const plainTasks = serializeTasks(tasks)
+
   if (window.electronAPI && window.electronAPI.saveTasks) {
-    window.electronAPI.saveTasks(JSON.stringify(tasks))
+    window.electronAPI.saveTasks(plainTasks).then((result) => {
+      if (!result?.success) {
+        console.error('保存任务失败:', result?.error)
+      }
+    }).catch((error) => {
+      console.error('保存任务失败:', error)
+    })
   } else {
-    localStorage.setItem('tasks', JSON.stringify(tasks))
+    localStorage.setItem('tasks', JSON.stringify(plainTasks))
   }
 }
 </script>

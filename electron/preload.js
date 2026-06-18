@@ -18,6 +18,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onTaskCountUpdate: (callback) => {
     ipcRenderer.on('task-count-update', (event, count) => callback(count))
   },
+
+  getTasks: () => ipcRenderer.invoke('tasks:get'),
+  saveTasks: (tasks) => ipcRenderer.invoke('tasks:save', tasks),
+  addTask: (text) => ipcRenderer.invoke('tasks:add', text),
+  updateTask: (payload) => ipcRenderer.invoke('tasks:update', payload),
+  toggleTask: (id) => ipcRenderer.invoke('tasks:toggle', id),
+  deleteTask: (id) => ipcRenderer.invoke('tasks:delete', id),
+  clearTasks: (filter) => ipcRenderer.invoke('tasks:clear', filter),
+  reorderTask: (payload) => ipcRenderer.invoke('tasks:reorder', payload),
+  onTasksChanged: (callback) => {
+    const listener = (event, payload) => callback(payload)
+    ipcRenderer.on('tasks:changed', listener)
+    return () => ipcRenderer.removeListener('tasks:changed', listener)
+  },
   
   // 设置窗口透明度
   setOpacity: (opacity) => ipcRenderer.send('set-opacity', opacity),

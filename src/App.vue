@@ -222,7 +222,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue'
 import TitleBar from './components/TitleBar.vue'
 import EdgeDetector from './components/EdgeDetector.vue'
 import ResizeHandle from './components/ResizeHandle.vue'
@@ -245,6 +245,8 @@ const quickTaskInput = ref('')
 const showSettings = ref(false)
 const settingsPanel = ref(null)
 const focusMode = ref(false)
+const syncingExternalTasks = ref(false)
+let unsubscribeTasksChanged = null
 
 const addingTask = ref(false)
 const deletingTask = ref(false)
@@ -616,12 +618,62 @@ const handleDragEnd = (event) => {
   dragOverTask.value = null
 }
 
-const saveTasksToStorage = () => {
-  localStorage.setItem('tasks', JSON.stringify(tasks.value))
+const serializeTasks = (taskList) => {
+  return taskList.map((task) => ({
+    id: Number(task.id),
+    text: String(task.text || ''),
+    completed: Boolean(task.completed)
+  }))
 }
 
-const loadTasksFromStorage = () => {
+const saveTasksToStorage = () => {
+  if (syncingExternalTasks.value) return
+  const plainTasks = serializeTasks(tasks.value)
+
+  if (window.electronAPI && window.electronAPI.saveTasks) {
+    window.electronAPI.saveTasks(plainTasks).then((result) => {
+      if (!result?.success) {
+        console.error('保存任务失败:', result?.error)
+      }
+    }).catch((error) => {
+      console.error('保存任务失败:', error)
+    })
+    return
+  }
+
+  localStorage.setItem('tasks', JSON.stringify(plainTasks))
+}
+
+const loadTasksFromStorage = async () => {
   const saved = localStorage.getItem('tasks')
+
+  if (window.electronAPI && window.electronAPI.getTasks) {
+    try {
+      const result = await window.electronAPI.getTasks()
+      if (result?.success) {
+        if (result.tasks.length === 0 && saved) {
+          try {
+            const legacyTasks = JSON.parse(saved)
+            const migrated = await window.electronAPI.saveTasks(legacyTasks)
+            if (migrated?.success) {
+              tasks.value = migrated.tasks
+              localStorage.removeItem('tasks')
+              return
+            }
+          } catch (error) {
+            console.error('迁移旧任务数据失败:', error)
+          }
+        }
+
+        tasks.value = result.tasks
+        return
+      }
+      console.error('加载任务失败:', result?.error)
+    } catch (error) {
+      console.error('加载任务失败:', error)
+    }
+  }
+
   if (saved) {
     try {
       tasks.value = JSON.parse(saved)
@@ -675,6 +727,15 @@ onMounted(() => {
     console.log('可用的API:', Object.keys(window.electronAPI))
   }
   loadTasksFromStorage()
+
+  if (window.electronAPI && window.electronAPI.onTasksChanged) {
+    unsubscribeTasksChanged = window.electronAPI.onTasksChanged((payload) => {
+      if (!payload || !Array.isArray(payload.tasks)) return
+      syncingExternalTasks.value = true
+      tasks.value = payload.tasks
+      syncingExternalTasks.value = false
+    })
+  }
   
   const saved = localStorage.getItem('app-locale')
   if (saved && (saved === 'zh' || saved === 'en')) {
@@ -704,6 +765,13 @@ onMounted(() => {
   })
   if (progressContainerRef.value) {
     resizeObserver.observe(progressContainerRef.value)
+  }
+})
+
+onUnmounted(() => {
+  if (unsubscribeTasksChanged) {
+    unsubscribeTasksChanged()
+    unsubscribeTasksChanged = null
   }
 })
 </script>
@@ -788,6 +856,7 @@ onMounted(() => {
 .content-wrapper {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   scrollbar-width: thin;
   scrollbar-color: var(--text-on-color, var(--theme-color)) #f1f5f9;
@@ -815,6 +884,7 @@ onMounted(() => {
 
 .todo-container {
   max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -1254,6 +1324,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0;
+  overflow-x: clip;
+  overflow-y: visible;
   position: relative;
   z-index: 1;
 }
@@ -1263,6 +1336,10 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 .task-item {

@@ -1,7 +1,20 @@
 import { app, BrowserWindow, screen, ipcMain, nativeImage } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { setupVoiceIpcHandlers } from './voiceHandler.js'
+import {
+  addTask,
+  clearTasks,
+  deleteTask,
+  getTasksFilePath,
+  getTaskSummary,
+  readTasks,
+  reorderTask,
+  toggleTask,
+  updateTask,
+  writeTasks
+} from './taskStore.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -17,6 +30,8 @@ let isIndicatorDragging = false
 let indicatorPosition = { x: 0, y: 0 }
 let isIndicatorSnapped = false  // 指示器是否吸附到边缘
 let userOpacity = 1  // 用户设置的透明度
+let taskStoreWatcher = null
+let taskStoreWatchTimer = null
 const DEFAULT_WIDTH = 400
 const MIN_WIDTH = 300
 const MAX_WIDTH = 600
@@ -27,6 +42,90 @@ const EDGE_SNAP_THRESHOLD = 30
 const INDICATOR_SIZE = 48
 /** Windows 缩放非 100% 时，仅用 setPosition 可能导致客户区换算误差；移动时应固定宽高用 setBounds（见博客园等资料） */
 const INDICATOR_DRAG_SLOP_PX = 5
+
+async function syncTaskCountFromStore() {
+  try {
+    const tasks = await readTasks()
+    updateTaskCount(getTaskSummary(tasks).pending)
+  } catch (error) {
+    console.error('同步任务数量失败:', error)
+  }
+}
+
+async function broadcastTasksFromStore() {
+  try {
+    const tasks = await readTasks()
+    updateTaskCount(getTaskSummary(tasks).pending)
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('tasks:changed', {
+        tasks,
+        summary: getTaskSummary(tasks)
+      })
+    }
+  } catch (error) {
+    console.error('广播任务变更失败:', error)
+  }
+}
+
+function scheduleTaskStoreBroadcast() {
+  if (taskStoreWatchTimer) {
+    clearTimeout(taskStoreWatchTimer)
+  }
+
+  taskStoreWatchTimer = setTimeout(() => {
+    taskStoreWatchTimer = null
+    broadcastTasksFromStore()
+  }, 120)
+}
+
+function watchTaskStore() {
+  if (taskStoreWatcher) return
+
+  const tasksFilePath = getTasksFilePath()
+  const taskStoreDir = path.dirname(tasksFilePath)
+
+  try {
+    fs.mkdirSync(taskStoreDir, { recursive: true })
+    taskStoreWatcher = fs.watch(taskStoreDir, (eventType, filename) => {
+      if (filename && filename.toString() !== path.basename(tasksFilePath)) return
+      scheduleTaskStoreBroadcast()
+    })
+
+    taskStoreWatcher.on('error', (error) => {
+      console.error('任务文件监听失败:', error)
+      taskStoreWatcher = null
+    })
+  } catch (error) {
+    console.error('启动任务文件监听失败:', error)
+  }
+}
+
+function stopTaskStoreWatch() {
+  if (taskStoreWatchTimer) {
+    clearTimeout(taskStoreWatchTimer)
+    taskStoreWatchTimer = null
+  }
+
+  if (taskStoreWatcher) {
+    taskStoreWatcher.close()
+    taskStoreWatcher = null
+  }
+}
+
+async function runTaskOperation(operation) {
+  try {
+    const result = await operation()
+    const tasks = result?.tasks || await readTasks()
+    updateTaskCount(getTaskSummary(tasks).pending)
+    return { success: true, ...result }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
+}
 
 function clampIndicatorToWorkArea(x, y, display, outerW = INDICATOR_SIZE, outerH = INDICATOR_SIZE) {
   const wa = display.workArea
@@ -154,6 +253,10 @@ function clearAllTimers() {
   if (animationTimer) {
     clearInterval(animationTimer)
     animationTimer = null
+  }
+  if (taskStoreWatchTimer) {
+    clearTimeout(taskStoreWatchTimer)
+    taskStoreWatchTimer = null
   }
 }
 
@@ -376,6 +479,8 @@ if (!gotTheLock) {
   app.whenReady().then(() => {
     createWindow()
     setupVoiceIpcHandlers(mainWindow)
+    syncTaskCountFromStore()
+    watchTaskStore()
 
     // 添加打开测试页面的 IPC 处理
     ipcMain.handle('open-test-page', async () => {
@@ -391,6 +496,51 @@ if (!gotTheLock) {
       })
       testWindow.loadFile(path.join(__dirname, '../src/test/voice-test.html'))
       return { success: true }
+    })
+
+    ipcMain.handle('tasks:get', async () => {
+      return runTaskOperation(async () => {
+        const tasks = await readTasks()
+        return { tasks, summary: getTaskSummary(tasks) }
+      })
+    })
+
+    ipcMain.handle('tasks:save', async (event, tasks) => {
+      return runTaskOperation(async () => {
+        const savedTasks = await writeTasks(tasks)
+        return { tasks: savedTasks, summary: getTaskSummary(savedTasks) }
+      })
+    })
+
+    ipcMain.handle('tasks:add', async (event, text) => {
+      return runTaskOperation(() => addTask(text))
+    })
+
+    ipcMain.handle('tasks:update', async (event, payload) => {
+      const updates = {}
+      if (Object.prototype.hasOwnProperty.call(payload || {}, 'text')) {
+        updates.text = payload.text
+      }
+      if (Object.prototype.hasOwnProperty.call(payload || {}, 'completed')) {
+        updates.completed = payload.completed
+      }
+      return runTaskOperation(() => updateTask(payload?.id, updates))
+    })
+
+    ipcMain.handle('tasks:toggle', async (event, id) => {
+      return runTaskOperation(() => toggleTask(id))
+    })
+
+    ipcMain.handle('tasks:delete', async (event, id) => {
+      return runTaskOperation(() => deleteTask(id))
+    })
+
+    ipcMain.handle('tasks:clear', async (event, filter = 'completed') => {
+      return runTaskOperation(() => clearTasks(filter))
+    })
+
+    ipcMain.handle('tasks:reorder', async (event, { id, before_id, after_id }) => {
+      return runTaskOperation(() => reorderTask(id, { before_id, after_id }))
     })
 
     app.on('activate', () => {
@@ -411,6 +561,7 @@ app.on('browser-window-focus', (event, window) => {
 // app.on('browser-window-blur', (event, window) => { ... })
 
 app.on('window-all-closed', () => {
+  stopTaskStoreWatch()
   if (process.platform !== 'darwin') {
     app.quit()
   }
