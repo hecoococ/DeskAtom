@@ -23,27 +23,51 @@
     </div>
     <div class="action-btns">
       <template v-if="!isEditing">
+        <div class="collapsible-actions" :class="{ expanded: actionsExpanded }">
+          <button
+            @click.stop="$emit('split-task', task)"
+            class="split-btn"
+            :title="t('todoItem.splitTask')"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M12 3l1.65 4.35L18 9l-4.35 1.65L12 15l-1.65-4.35L6 9l4.35-1.65L12 3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button
+            @click.stop="$emit('manage-groups', task)"
+            class="group-btn"
+            :title="t('todoItem.manageGroups')"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M4 6h6l2 2h8v10a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button
+            @click="startEdit"
+            class="edit-btn"
+            :title="t('todoItem.editTask')"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
         <button
-          @click.stop="$emit('manage-groups', task)"
-          class="group-btn"
-          :title="t('todoItem.manageGroups')"
+          @click.stop="toggleActions"
+          class="actions-toggle-btn"
+          :title="actionsExpanded ? t('todoItem.collapseActions') : t('todoItem.expandActions')"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M4 6h6l2 2h8v10a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          <svg v-if="!actionsExpanded" width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
         <button
-          @click="startEdit"
-          class="edit-btn"
-          :title="t('todoItem.editTask')"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <button
-          @click="$emit('delete', task.id)"
+          @click="handleDelete"
           class="delete-btn"
           :title="t('todoItem.deleteTask')"
         >
@@ -89,15 +113,17 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['toggle', 'delete', 'update', 'manage-groups'])
+const emit = defineEmits(['toggle', 'delete', 'update', 'manage-groups', 'split-task'])
 
 const isEditing = ref(false)
 const editText = ref('')
 const editInputRef = ref(null)
+const actionsExpanded = ref(false)
 
 const startEdit = () => {
   editText.value = props.task.text
   isEditing.value = true
+  actionsExpanded.value = false
   nextTick(() => {
     editInputRef.value?.focus()
     editInputRef.value?.select()
@@ -115,6 +141,15 @@ const saveEdit = () => {
     isEditing.value = false
     editText.value = ''
   }
+}
+
+const toggleActions = () => {
+  actionsExpanded.value = !actionsExpanded.value
+}
+
+const handleDelete = () => {
+  actionsExpanded.value = false
+  emit('delete', props.task.id)
 }
 </script>
 
@@ -277,10 +312,34 @@ const saveEdit = () => {
 .action-btns {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
+.collapsible-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateX(8px);
+  transition:
+    max-width 0.24s ease,
+    opacity 0.18s ease,
+    transform 0.24s ease;
+}
+
+.collapsible-actions.expanded {
+  max-width: 120px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.actions-toggle-btn,
+.split-btn,
 .edit-btn,
 .group-btn,
 .cancel-btn,
@@ -300,10 +359,32 @@ const saveEdit = () => {
   opacity: 0.7;
 }
 
-.task-card:hover .edit-btn,
-.task-card:hover .group-btn,
-.task-card:hover .delete-btn {
+.actions-toggle-btn {
+  color: #64748b;
+  background: #f8fafc;
   opacity: 1;
+}
+
+.actions-toggle-btn:hover {
+  color: var(--text-on-color, var(--theme-color, #3b82f6));
+  background: var(--theme-color-light, rgba(59, 130, 246, 0.1));
+}
+
+.task-card:hover .edit-btn,
+.task-card:hover .split-btn,
+.task-card:hover .group-btn,
+.task-card:hover .delete-btn,
+.task-card:hover .actions-toggle-btn {
+  opacity: 1;
+}
+
+.split-btn {
+  color: var(--text-on-color, var(--theme-color, #3b82f6));
+}
+
+.split-btn:hover {
+  background: var(--theme-color-light, rgba(59, 130, 246, 0.1));
+  transform: scale(1.1);
 }
 
 .group-btn {
@@ -410,13 +491,12 @@ const saveEdit = () => {
   }
 
   .action-btns {
-    gap: 4px;
+    gap: 3px;
     flex-shrink: 0;
   }
 
   .delete-btn,
-  .group-btn,
-  .edit-btn {
+  .actions-toggle-btn {
     opacity: 1;
   }
 
@@ -426,13 +506,23 @@ const saveEdit = () => {
   }
 
   .edit-btn,
+  .split-btn,
   .group-btn,
+  .actions-toggle-btn,
   .cancel-btn,
   .save-btn,
   .delete-btn {
     width: 28px;
     height: 28px;
     flex-shrink: 0;
+  }
+
+  .collapsible-actions {
+    gap: 3px;
+  }
+
+  .collapsible-actions.expanded {
+    max-width: 96px;
   }
 }
 </style>

@@ -32,6 +32,7 @@ import {
   updateTasks,
   ALL_GROUP_ID
 } from './taskStore.js'
+import { splitTaskText } from './aiService.js'
 
 const CHARACTER_LIMIT = 25000
 
@@ -158,6 +159,26 @@ const ReorderGroupSchema = z.object({
   after_id: z.string().min(1).max(100).optional().describe('Move after this group id.')
 }).strict()
 
+const AISplitTextSchema = z.object({
+  text: z.string().min(1).max(10000).describe('Complex text or one existing task text to split into actionable tasks.'),
+  supplement: z.string().max(4000).optional().describe('Additional constraints or corrections when regenerating a split preview.'),
+  count_mode: z.enum(['none', 'approx', 'exact']).default('none').describe('Whether task count is unconstrained, approximate, or exact.'),
+  task_count: z.number().int().min(1).max(30).default(8).describe('Exact desired task count for count_mode=exact.'),
+  task_count_min: z.number().int().min(1).max(30).default(5).describe('Lower bound for count_mode=approx.'),
+  task_count_max: z.number().int().min(1).max(30).default(10).describe('Upper bound for count_mode=approx.'),
+  context_group_id: z.string().min(1).max(100).optional().describe("Optional group id for context. Use 'all' or omit for global context."),
+  max_tasks: z.number().int().min(1).max(30).default(30).describe('Maximum tasks to return in the preview.'),
+  response_format: ResponseFormatSchema.default('json').describe("Return 'json' for structured processing or 'markdown' for reading.")
+}).strict()
+
+const ApplySplitTasksSchema = z.object({
+  tasks: z.array(z.string().min(1).max(1000)).min(1).max(30).describe('Previewed task texts to write into DeskAtom.'),
+  target_mode: z.enum(['new_group', 'existing_group']).describe('Create a new target group or add tasks to an existing group.'),
+  group_name: z.string().min(1).max(100).optional().describe('Required for target_mode=new_group. Duplicate names get a numeric suffix.'),
+  group_id: z.string().min(1).max(100).optional().describe('Required for target_mode=existing_group.'),
+  complete_source_task_id: z.number().int().optional().describe('Optional source task id to mark completed after adding split tasks.')
+}).strict()
+
 function filterTasks(tasks, filter) {
   if (filter === 'pending') return tasks.filter((task) => !task.completed)
   if (filter === 'completed') return tasks.filter((task) => task.completed)
@@ -261,6 +282,52 @@ function normalizeAddItems(items) {
   )
 }
 
+function normalizeSplitTasks(tasks) {
+  const seen = new Set()
+  const normalized = []
+
+  for (const task of tasks) {
+    const text = String(task || '').trim()
+    const key = text.toLowerCase()
+    if (!text || seen.has(key)) continue
+    seen.add(key)
+    normalized.push(text)
+  }
+
+  return normalized.slice(0, 30)
+}
+
+function uniqueGroupName(baseName, groups) {
+  const cleanName = String(baseName || '').trim()
+  if (!cleanName) throw new Error('group_name is required when target_mode is new_group.')
+
+  const existingNames = new Set(groups.map((group) => group.name.trim().toLowerCase()))
+  if (!existingNames.has(cleanName.toLowerCase())) return cleanName
+
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = `${cleanName} ${index}`
+    if (!existingNames.has(candidate.toLowerCase())) return candidate
+  }
+
+  return `${cleanName} ${Date.now()}`
+}
+
+function formatAISplitMarkdown(payload) {
+  const lines = [
+    '# DeskAtom AI Split Preview',
+    '',
+    `Suggested group: ${payload.group_name || 'Untitled'}`,
+    payload.explanation ? `Explanation: ${payload.explanation}` : '',
+    ''
+  ].filter(Boolean)
+
+  payload.tasks.forEach((task, index) => {
+    lines.push(`${index + 1}. ${task}`)
+  })
+
+  return lines.join('\n')
+}
+
 function mutationResponse(action, result) {
   const groups = result.groups || []
   const payload = {
@@ -356,6 +423,103 @@ server.registerTool('deskatom_get_task_stats', {
       `- Completed: ${response.completed}`,
       `- Completion: ${response.completion_percentage}%`
     ].join('\n'))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_ai_split_text', {
+  title: 'AI Split DeskAtom Text',
+  description: 'Use the configured OpenAI-compatible AI service to split complex text into actionable DeskAtom task previews. This does not write tasks.',
+  inputSchema: AISplitTextSchema,
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+}, async (params) => {
+  try {
+    const taskData = await readTaskData()
+    let contextGroupName = ''
+    if (params.context_group_id && params.context_group_id !== ALL_GROUP_ID) {
+      const group = taskData.groups.find((item) => item.id === params.context_group_id)
+      if (!group) throw new Error(`Group not found: ${params.context_group_id}`)
+      contextGroupName = group.name
+    }
+
+    const result = await splitTaskText({
+      text: params.text,
+      supplement: params.supplement,
+      countMode: params.count_mode,
+      taskCount: params.task_count,
+      taskCountMin: params.task_count_min,
+      taskCountMax: params.task_count_max,
+      contextGroupName,
+      groups: taskData.groups.map((group) => ({ id: group.id, name: group.name })),
+      language: 'zh-CN',
+      maxTasks: params.count_mode === 'exact' ? params.task_count : params.max_tasks
+    })
+
+    const response = {
+      group_name: result.groupName,
+      tasks: result.tasks,
+      explanation: result.explanation,
+      count: result.tasks.length,
+      count_mode: params.count_mode,
+      task_count: params.task_count,
+      task_count_min: params.task_count_min,
+      task_count_max: params.task_count_max,
+      context_group_id: params.context_group_id || ALL_GROUP_ID
+    }
+
+    return okText(params.response_format === 'markdown' ? formatAISplitMarkdown(response) : jsonText(response))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_apply_split_tasks', {
+  title: 'Apply AI Split DeskAtom Tasks',
+  description: 'Write previewed AI split tasks into a new or existing DeskAtom group, optionally completing the source task.',
+  inputSchema: ApplySplitTasksSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+}, async (params) => {
+  try {
+    const taskTexts = normalizeSplitTasks(params.tasks)
+    if (taskTexts.length === 0) throw new Error('At least one non-empty task is required.')
+
+    const taskData = await readTaskData()
+    let targetGroup = null
+
+    if (params.target_mode === 'new_group') {
+      const groupName = uniqueGroupName(params.group_name, taskData.groups)
+      const createdResult = await createGroup(groupName)
+      targetGroup = createdResult.group
+    } else {
+      if (!params.group_id) throw new Error('group_id is required when target_mode is existing_group.')
+      targetGroup = taskData.groups.find((group) => group.id === params.group_id)
+      if (!targetGroup) throw new Error(`Group not found: ${params.group_id}`)
+    }
+
+    const addResult = await addTasks(taskTexts, { groupIds: [targetGroup.id] })
+    let sourceTask = null
+    let finalData = addResult
+
+    if (params.complete_source_task_id != null) {
+      const updateResult = await updateTask(params.complete_source_task_id, { completed: true })
+      sourceTask = updateResult.task
+      finalData = updateResult
+    }
+
+    const groups = finalData.groups || addResult.groups || []
+    const tasks = finalData.tasks || addResult.tasks || []
+    const response = {
+      action: 'applied_ai_split',
+      target_group: formatGroup(targetGroup, tasks),
+      added: addResult.added.map((task) => formatTask(task, groups)),
+      completed_source_task: sourceTask ? formatTask(sourceTask, groups) : null,
+      summary: getTaskSummary(tasks, targetGroup.id),
+      groups: groups.map((group) => formatGroup(group, tasks)),
+      tasks: tasks.map((task) => formatTask(task, groups))
+    }
+
+    return okText(jsonText(response))
   } catch (error) {
     return errorText(error)
   }

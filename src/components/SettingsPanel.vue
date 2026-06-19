@@ -148,6 +148,50 @@
           </div>
         </div>
 
+        <!-- AI 服务配置 -->
+        <div class="setting-section">
+          <button class="collapsible-header" :class="{ expanded: aiSectionExpanded }" @click="aiSectionExpanded = !aiSectionExpanded">
+            <span>{{ t('settings.aiService') }}</span>
+            <svg class="expand-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <transition name="collapse">
+            <div v-if="aiSectionExpanded" class="voice-config">
+              <div class="voice-config-row">
+                <label>{{ t('settings.aiBaseURLLabel') }}</label>
+                <input
+                  v-model="aiBaseURL"
+                  type="text"
+                  :placeholder="t('settings.aiBaseURLPlaceholder')"
+                  class="voice-input"
+                />
+              </div>
+              <div class="voice-config-row">
+                <label>{{ t('settings.aiApiKeyLabel') }}</label>
+                <input
+                  v-model="aiApiKey"
+                  type="password"
+                  :placeholder="t('settings.aiApiKeyPlaceholder')"
+                  class="voice-input"
+                />
+              </div>
+              <div class="voice-config-row">
+                <label>{{ t('settings.aiModelLabel') }}</label>
+                <input
+                  v-model="aiModel"
+                  type="text"
+                  :placeholder="t('settings.aiModelPlaceholder')"
+                  class="voice-input"
+                />
+              </div>
+              <button class="save-voice-btn" @click="saveAISettings">
+                {{ t('settings.saveConfig') }}
+              </button>
+            </div>
+          </transition>
+        </div>
+
         <!-- 阿里云语音服务配置 -->
         <div class="setting-section">
           <button class="collapsible-header" :class="{ expanded: voiceSectionExpanded }" @click="voiceSectionExpanded = !voiceSectionExpanded">
@@ -254,6 +298,10 @@ const voiceAccessKeyId = ref('')
 const voiceAccessKeySecret = ref('')
 const voiceAppkey = ref('')
 const voiceSectionExpanded = ref(false)
+const aiBaseURL = ref('https://api.openai.com/v1')
+const aiApiKey = ref('')
+const aiModel = ref('gpt-4o-mini')
+const aiSectionExpanded = ref(false)
 
 // Toast 提示
 const toast = reactive({
@@ -305,6 +353,46 @@ const openTestPage = async () => {
   }
 }
 
+const saveAISettings = async () => {
+  if (!aiBaseURL.value.trim()) {
+    showToast(t('settings.fillAIBaseURL'), 'error')
+    return
+  }
+
+  if (!aiApiKey.value.trim()) {
+    showToast(t('settings.fillAIApiKey'), 'error')
+    return
+  }
+
+  if (!aiModel.value.trim()) {
+    showToast(t('settings.fillAIModel'), 'error')
+    return
+  }
+
+  const config = {
+    baseURL: aiBaseURL.value.trim(),
+    apiKey: aiApiKey.value.trim(),
+    model: aiModel.value.trim()
+  }
+
+  if (window.electronAPI && window.electronAPI.saveAIConfig) {
+    const result = await window.electronAPI.saveAIConfig(config)
+    if (!result?.success) {
+      showToast(result?.error || t('settings.aiConfigSaveFailed'), 'error')
+      return
+    }
+    if (result.config) {
+      aiBaseURL.value = result.config.baseURL || config.baseURL
+      aiApiKey.value = result.config.apiKey || ''
+      aiModel.value = result.config.model || config.model
+    }
+  } else {
+    localStorage.setItem('ai-settings', JSON.stringify(config))
+  }
+
+  showToast(t('settings.aiConfigSaved'), 'success')
+}
+
 // 加载语音配置
 const loadVoiceSettings = () => {
   const saved = localStorage.getItem('voice-settings')
@@ -320,10 +408,40 @@ const loadVoiceSettings = () => {
   }
 }
 
+const loadAISettings = async () => {
+  if (window.electronAPI && window.electronAPI.getAIConfig) {
+    try {
+      const result = await window.electronAPI.getAIConfig()
+      if (result?.success && result.config) {
+        aiBaseURL.value = result.config.baseURL || 'https://api.openai.com/v1'
+        aiApiKey.value = result.config.apiKey || ''
+        aiModel.value = result.config.model || 'gpt-4o-mini'
+        return
+      }
+      if (result?.error) console.error(result.error)
+    } catch (error) {
+      console.error(t('settings.loadAIConfigFailed'), error)
+    }
+  }
+
+  const saved = localStorage.getItem('ai-settings')
+  if (saved) {
+    try {
+      const config = JSON.parse(saved)
+      aiBaseURL.value = config.baseURL || 'https://api.openai.com/v1'
+      aiApiKey.value = config.apiKey || ''
+      aiModel.value = config.model || 'gpt-4o-mini'
+    } catch (error) {
+      console.error(t('settings.loadAIConfigFailed'), error)
+    }
+  }
+}
+
 // 语音配置加载时机的 watch
 watch(() => props.visible, (newVal) => {
   if (newVal) {
     loadVoiceSettings()
+    loadAISettings()
   }
 })
 

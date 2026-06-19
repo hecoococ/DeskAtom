@@ -27,6 +27,18 @@
             >
             <VoiceInput @result="handleVoiceResult" @error="handleVoiceError" @autoAdd="handleAutoAddTask" />
             <button
+              @click="openInputAISplit"
+              class="ai-split-input-btn"
+              :class="{ suggested: canSuggestAISplit, loading: aiSplitDialog.loading }"
+              :disabled="!newTask.trim() || aiSplitDialog.loading"
+              :title="t('app.aiSplitInput')"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M12 3l1.65 4.35L18 9l-4.35 1.65L12 15l-1.65-4.35L6 9l4.35-1.65L12 3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                <path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button
               @click="addTask"
               class="add-btn"
               :title="t('app.addTaskTitle')"
@@ -155,6 +167,7 @@
               @delete="deleteTask"
               @update="updateTask"
               @manage-groups="openTaskGroupDialog"
+              @split-task="openTaskAISplit"
               draggable="true"
               @dragstart="handleDragStart($event, task)"
               @dragover.prevent="handleDragOver($event, task)"
@@ -334,6 +347,214 @@
           </div>
         </div>
       </transition>
+
+      <transition name="modal">
+        <div v-if="aiSplitDialog.show" class="group-modal-overlay" @click="closeAISplitDialog">
+          <div class="group-modal-content ai-split-modal" :class="{ 'dark-mode': appSettings.darkMode }" @click.stop>
+            <div class="group-modal-header">
+              <div class="group-modal-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 3l1.65 4.35L18 9l-4.35 1.65L12 15l-1.65-4.35L6 9l4.35-1.65L12 3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                  <path d="M19 14l.9 2.1L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.9L19 14z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="group-modal-title-wrap">
+                <h3>{{ aiSplitDialog.stage === 'compose' ? t('app.aiSplitPrepare') : t('app.aiSplitPreview') }}</h3>
+                <p>{{ aiSplitDialog.sourceText }}</p>
+              </div>
+            </div>
+
+            <div class="ai-split-body">
+              <template v-if="aiSplitDialog.stage === 'compose'">
+                <div class="ai-split-field">
+                  <label>{{ t('app.aiSplitPromptText') }}</label>
+                  <textarea
+                    v-model="aiSplitDialog.promptText"
+                    class="ai-split-textarea"
+                    :placeholder="t('app.aiSplitPromptPlaceholder')"
+                  ></textarea>
+                </div>
+
+                <div class="ai-split-field">
+                  <label>{{ t('app.aiSplitCountRequirement') }}</label>
+                  <div class="ai-count-options">
+                    <button
+                      type="button"
+                      :class="{ active: aiSplitDialog.countMode === 'none' }"
+                      @click="aiSplitDialog.countMode = 'none'"
+                    >
+                      {{ t('app.aiSplitCountNone') }}
+                    </button>
+                    <button
+                      type="button"
+                      :class="{ active: aiSplitDialog.countMode === 'approx' }"
+                      @click="aiSplitDialog.countMode = 'approx'"
+                    >
+                      {{ t('app.aiSplitCountApprox') }}
+                    </button>
+                    <button
+                      type="button"
+                      :class="{ active: aiSplitDialog.countMode === 'exact' }"
+                      @click="aiSplitDialog.countMode = 'exact'"
+                    >
+                      {{ t('app.aiSplitCountExact') }}
+                    </button>
+                  </div>
+                  <div v-if="aiSplitDialog.countMode === 'approx'" class="ai-count-input-row range">
+                    <input
+                      v-model.number="aiSplitDialog.taskCountMin"
+                      type="number"
+                      min="1"
+                      max="30"
+                      class="ai-count-input"
+                    >
+                    <span class="ai-count-separator">~</span>
+                    <input
+                      v-model.number="aiSplitDialog.taskCountMax"
+                      type="number"
+                      min="1"
+                      max="30"
+                      class="ai-count-input"
+                    >
+                    <span>{{ t('app.aiSplitCountUnit') }}</span>
+                  </div>
+                  <div v-else-if="aiSplitDialog.countMode === 'exact'" class="ai-count-input-row">
+                    <input
+                      v-model.number="aiSplitDialog.taskCountMin"
+                      type="number"
+                      min="1"
+                      max="30"
+                      class="ai-count-input"
+                    >
+                    <span>{{ t('app.aiSplitCountUnit') }}</span>
+                  </div>
+                </div>
+              </template>
+
+              <div v-else-if="aiSplitDialog.loading" class="ai-split-state">
+                <div class="ai-split-spinner"></div>
+                <span>{{ t('app.aiSplitLoading') }}</span>
+              </div>
+
+              <div v-else-if="aiSplitDialog.stage === 'error'" class="ai-split-state error">
+                <strong>{{ t('app.aiSplitError') }}</strong>
+                <span>{{ aiSplitDialog.error }}</span>
+              </div>
+
+              <template v-else>
+                <p v-if="aiSplitDialog.explanation" class="ai-split-explanation">
+                  {{ aiSplitDialog.explanation }}
+                </p>
+
+                <div class="ai-split-field">
+                  <label>{{ t('app.aiSplitSupplementInfo') }}</label>
+                  <textarea
+                    v-model="aiSplitDialog.supplement"
+                    class="ai-split-textarea compact"
+                    :placeholder="t('app.aiSplitSupplementPlaceholder')"
+                  ></textarea>
+                  <button
+                    type="button"
+                    class="ai-regenerate-btn"
+                    :disabled="aiSplitDialog.loading"
+                    @click="regenerateAISplit"
+                  >
+                    {{ t('app.aiSplitRegenerate') }}
+                  </button>
+                </div>
+
+                <div class="ai-split-field">
+                  <label>{{ t('app.aiSplitTarget') }}</label>
+                  <div class="ai-target-options">
+                    <button
+                      type="button"
+                      :class="{ active: aiSplitDialog.targetMode === 'new_group' }"
+                      @click="aiSplitDialog.targetMode = 'new_group'"
+                    >
+                      {{ t('app.aiSplitNewGroup') }}
+                    </button>
+                    <button
+                      type="button"
+                      :class="{ active: aiSplitDialog.targetMode === 'current_group' }"
+                      @click="aiSplitDialog.targetMode = 'current_group'"
+                    >
+                      {{ t('app.aiSplitCurrentGroup') }}
+                    </button>
+                    <button
+                      type="button"
+                      :class="{ active: aiSplitDialog.targetMode === 'existing_group' }"
+                      @click="aiSplitDialog.targetMode = 'existing_group'"
+                    >
+                      {{ t('app.aiSplitExistingGroup') }}
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="aiSplitDialog.targetMode === 'new_group'" class="ai-split-field">
+                  <label>{{ t('app.aiSplitGroupName') }}</label>
+                  <input v-model="aiSplitDialog.groupName" class="group-modal-input">
+                </div>
+
+                <div v-if="aiSplitDialog.targetMode === 'existing_group'" class="ai-split-field">
+                  <label>{{ t('app.aiSplitExistingGroup') }}</label>
+                  <select v-model="aiSplitDialog.selectedGroupId" class="ai-split-select">
+                    <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option>
+                  </select>
+                </div>
+
+                <label v-if="aiSplitDialog.sourceTaskId" class="ai-complete-source">
+                  <input type="checkbox" v-model="aiSplitDialog.completeSourceTask">
+                  <span>{{ t('app.aiSplitCompleteSource') }}</span>
+                </label>
+
+                <div class="ai-split-field">
+                  <label>{{ t('app.aiSplitTasks') }}</label>
+                  <div class="ai-split-task-list">
+                    <div v-for="(taskText, index) in aiSplitDialog.tasks" :key="index" class="ai-split-task-row">
+                      <input v-model="aiSplitDialog.tasks[index]" class="group-modal-input">
+                      <button type="button" class="ai-task-remove-btn" :title="t('app.aiSplitRemoveTask')" @click="removeAISplitTask(index)">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <div class="group-modal-footer">
+              <button type="button" class="group-modal-btn secondary" @click="closeAISplitDialog">{{ t('dialog.cancel') }}</button>
+              <button
+                v-if="aiSplitDialog.stage === 'error'"
+                type="button"
+                class="group-modal-btn secondary"
+                @click="aiSplitDialog.stage = 'compose'; aiSplitDialog.error = ''"
+              >
+                {{ t('app.aiSplitBackToEdit') }}
+              </button>
+              <button
+                v-if="aiSplitDialog.stage === 'compose'"
+                type="button"
+                class="group-modal-btn primary"
+                :disabled="!aiSplitDialog.promptText.trim() || aiSplitDialog.loading"
+                @click="submitAISplitPrompt"
+              >
+                {{ t('app.aiSplitSend') }}
+              </button>
+              <button
+                v-else-if="aiSplitDialog.stage === 'preview'"
+                type="button"
+                class="group-modal-btn primary"
+                :disabled="aiSplitDialog.loading || aiSplitDialog.tasks.length === 0"
+                @click="applyAISplit"
+              >
+                {{ t('app.aiSplitApply') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
     </template>
 
     <!-- 专注模式 -->
@@ -412,6 +633,27 @@ const newGroupName = ref('')
 
 const INBOX_GROUP_ID = 'inbox'
 const ALL_GROUP_ID = 'all'
+
+const aiSplitDialog = ref({
+  show: false,
+  stage: 'compose',
+  loading: false,
+  error: '',
+  source: 'input',
+  sourceTaskId: null,
+  sourceText: '',
+  promptText: '',
+  countMode: 'none',
+  taskCountMin: 5,
+  taskCountMax: 10,
+  supplement: '',
+  groupName: '',
+  tasks: [],
+  explanation: '',
+  targetMode: 'new_group',
+  selectedGroupId: INBOX_GROUP_ID,
+  completeSourceTask: false
+})
 
 // 配色方案配置
 const colorSchemes = [
@@ -536,6 +778,10 @@ const groupOptions = computed(() => [
 ])
 
 const activeRealGroup = computed(() => selectedGroupId.value !== ALL_GROUP_ID && groups.value.some((group) => group.id === selectedGroupId.value))
+const canSuggestAISplit = computed(() => {
+  const text = newTask.value.trim()
+  return text.length >= 24 || /[\n\r、,，;；。]/.test(text) || /\d+[.、)]/.test(text)
+})
 
 const tasksInSelectedGroup = computed(() => {
   if (selectedGroupId.value === ALL_GROUP_ID) return tasks.value
@@ -628,6 +874,28 @@ const getDefaultGroupIdsForNewTask = () => {
   return selectedGroupId.value === ALL_GROUP_ID ? [INBOX_GROUP_ID] : [selectedGroupId.value]
 }
 
+const getCurrentConcreteGroupId = () => {
+  return selectedGroupId.value === ALL_GROUP_ID ? INBOX_GROUP_ID : selectedGroupId.value
+}
+
+const getGroupNameById = (groupId) => {
+  return groups.value.find((group) => group.id === groupId)?.name || ''
+}
+
+const getUniqueGroupName = (baseName) => {
+  const fallbackName = t('app.aiSplitPreview')
+  const cleanName = String(baseName || '').trim() || fallbackName
+  const existingNames = new Set(groups.value.map((group) => group.name.trim().toLowerCase()))
+  if (!existingNames.has(cleanName.toLowerCase())) return cleanName
+
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = `${cleanName} ${index}`
+    if (!existingNames.has(candidate.toLowerCase())) return candidate
+  }
+
+  return `${cleanName} ${Date.now()}`
+}
+
 const getGroupTaskCount = (groupId) => {
   if (groupId === ALL_GROUP_ID) return tasks.value.length
   return tasks.value.filter((task) => normalizeTaskGroupIds(task).includes(groupId)).length
@@ -653,6 +921,7 @@ const createGroupByName = async (name, { selectCreated = true, addToDialog = fal
           groupDialog.value.selectedIds = [...groupDialog.value.selectedIds, createdGroupId]
         }
       }
+      return createdGroupId || null
     } catch (error) {
       console.error('创建分组失败:', error)
     }
@@ -814,6 +1083,267 @@ const createGroupFromDialog = async () => {
   newGroupName.value = ''
 }
 
+const resetAISplitDialog = () => {
+  aiSplitDialog.value = {
+    show: false,
+    stage: 'compose',
+    loading: false,
+    error: '',
+    source: 'input',
+    sourceTaskId: null,
+    sourceText: '',
+    promptText: '',
+    countMode: 'none',
+    taskCountMin: 5,
+    taskCountMax: 10,
+    supplement: '',
+    groupName: '',
+    tasks: [],
+    explanation: '',
+    targetMode: 'new_group',
+    selectedGroupId: getCurrentConcreteGroupId(),
+    completeSourceTask: false
+  }
+}
+
+const normalizeAISplitTasks = (taskList) => {
+  const seen = new Set()
+  const normalized = []
+
+  taskList.forEach((text) => {
+    const trimmedText = String(text || '').trim()
+    const key = trimmedText.toLowerCase()
+    if (!trimmedText || seen.has(key)) return
+    seen.add(key)
+    normalized.push(trimmedText)
+  })
+
+  return normalized.slice(0, 30)
+}
+
+const getAISplitCountOptions = () => {
+  const firstCount = Math.max(1, Math.min(Number(aiSplitDialog.value.taskCountMin) || 5, 30))
+  const secondCount = Math.max(1, Math.min(Number(aiSplitDialog.value.taskCountMax) || 10, 30))
+  const minCount = Math.min(firstCount, secondCount)
+  const maxCount = Math.max(firstCount, secondCount)
+  const exactCount = firstCount
+
+  return {
+    countMode: aiSplitDialog.value.countMode,
+    taskCount: exactCount,
+    taskCountMin: minCount,
+    taskCountMax: maxCount,
+    maxTasks: aiSplitDialog.value.countMode === 'exact' ? exactCount : 30
+  }
+}
+
+const openAISplitComposer = ({ text, source = 'input', sourceTaskId = null }) => {
+  const sourceText = String(text || '').trim()
+  if (!sourceText) {
+    showEmptyError.value = true
+    setTimeout(() => {
+      showEmptyError.value = false
+    }, 2000)
+    return
+  }
+
+  const currentGroupId = getCurrentConcreteGroupId()
+  aiSplitDialog.value = {
+    show: true,
+    stage: 'compose',
+    loading: false,
+    error: '',
+    source,
+    sourceTaskId,
+    sourceText,
+    promptText: sourceText,
+    countMode: 'none',
+    taskCountMin: 5,
+    taskCountMax: 10,
+    supplement: '',
+    groupName: '',
+    tasks: [],
+    explanation: '',
+    targetMode: 'new_group',
+    selectedGroupId: currentGroupId,
+    completeSourceTask: false
+  }
+}
+
+const runAISplitRequest = async ({ includeSupplement = false } = {}) => {
+  const promptText = String(aiSplitDialog.value.promptText || '').trim()
+  if (!promptText) {
+    aiSplitDialog.value.error = t('app.aiSplitEmpty')
+    return
+  }
+
+  if (!window.electronAPI?.splitTaskText) {
+    aiSplitDialog.value.stage = 'error'
+    aiSplitDialog.value.loading = false
+    aiSplitDialog.value.error = t('app.aiSplitConfigHint')
+    return
+  }
+
+  const currentGroupId = getCurrentConcreteGroupId()
+  const countOptions = getAISplitCountOptions()
+  aiSplitDialog.value.stage = 'preview'
+  aiSplitDialog.value.loading = true
+  aiSplitDialog.value.error = ''
+
+  try {
+    const result = await window.electronAPI.splitTaskText({
+      text: promptText,
+      supplement: includeSupplement ? aiSplitDialog.value.supplement : '',
+      countMode: countOptions.countMode,
+      taskCount: countOptions.taskCount,
+      taskCountMin: countOptions.taskCountMin,
+      taskCountMax: countOptions.taskCountMax,
+      contextGroupName: selectedGroupId.value === ALL_GROUP_ID ? '' : getGroupNameById(selectedGroupId.value),
+      groups: groups.value.map((group) => ({ id: group.id, name: group.name })),
+      language: locale.value,
+      maxTasks: countOptions.maxTasks
+    })
+
+    if (!result?.success) {
+      throw new Error(result?.error || t('app.aiSplitError'))
+    }
+
+    const splitResult = result.result || {}
+    const splitTasks = normalizeAISplitTasks(splitResult.tasks || [])
+    if (splitTasks.length === 0) {
+      throw new Error(t('app.aiSplitEmpty'))
+    }
+
+    aiSplitDialog.value.loading = false
+    aiSplitDialog.value.stage = 'preview'
+    aiSplitDialog.value.groupName = splitResult.groupName || getGroupNameById(currentGroupId) || t('app.aiSplitPreview')
+    aiSplitDialog.value.tasks = splitTasks
+    aiSplitDialog.value.explanation = splitResult.explanation || ''
+  } catch (error) {
+    console.error('AI 拆分失败:', error)
+    aiSplitDialog.value.loading = false
+    aiSplitDialog.value.stage = 'error'
+    aiSplitDialog.value.error = error.message || t('app.aiSplitError')
+  }
+}
+
+const submitAISplitPrompt = () => {
+  runAISplitRequest()
+}
+
+const regenerateAISplit = () => {
+  runAISplitRequest({ includeSupplement: true })
+}
+
+const openInputAISplit = () => {
+  openAISplitComposer({
+    text: newTask.value,
+    source: 'input'
+  })
+}
+
+const openTaskAISplit = (task) => {
+  openAISplitComposer({
+    text: task?.text || '',
+    source: 'task',
+    sourceTaskId: task?.id || null
+  })
+}
+
+const closeAISplitDialog = () => {
+  resetAISplitDialog()
+}
+
+const removeAISplitTask = (index) => {
+  aiSplitDialog.value.tasks.splice(index, 1)
+}
+
+const resolveAISplitTargetGroupId = async () => {
+  if (aiSplitDialog.value.targetMode === 'new_group') {
+    const groupName = getUniqueGroupName(aiSplitDialog.value.groupName)
+    return await createGroupByName(groupName, { selectCreated: false })
+  }
+
+  if (aiSplitDialog.value.targetMode === 'existing_group') {
+    return aiSplitDialog.value.selectedGroupId || INBOX_GROUP_ID
+  }
+
+  return getCurrentConcreteGroupId()
+}
+
+const addSplitTasksToGroup = async (taskTexts, groupId) => {
+  if (window.electronAPI?.addTasks) {
+    const result = await window.electronAPI.addTasks({
+      tasks: taskTexts,
+      groupIds: [groupId]
+    })
+    applyTaskResult(result)
+    return
+  }
+
+  const now = Date.now()
+  const newTasks = taskTexts.map((text, index) => ({
+    id: now + index,
+    text,
+    completed: false,
+    groupIds: [groupId]
+  }))
+  tasks.value = [...newTasks, ...tasks.value]
+  saveTasksToStorage()
+}
+
+const completeSourceTaskAfterSplit = async () => {
+  const sourceTaskId = aiSplitDialog.value.sourceTaskId
+  if (!sourceTaskId || !aiSplitDialog.value.completeSourceTask) return
+
+  if (window.electronAPI?.updateTask) {
+    applyTaskResult(await window.electronAPI.updateTask({
+      id: sourceTaskId,
+      completed: true
+    }))
+    return
+  }
+
+  updateTask({
+    id: sourceTaskId,
+    completed: true
+  })
+}
+
+const applyAISplit = async () => {
+  const taskTexts = normalizeAISplitTasks(aiSplitDialog.value.tasks)
+  if (taskTexts.length === 0) {
+    aiSplitDialog.value.error = t('app.aiSplitEmpty')
+    return
+  }
+
+  aiSplitDialog.value.loading = true
+  aiSplitDialog.value.error = ''
+
+  try {
+    const targetGroupId = await resolveAISplitTargetGroupId()
+    if (!targetGroupId) throw new Error(t('app.aiSplitError'))
+
+    await addSplitTasksToGroup(taskTexts, targetGroupId)
+    await completeSourceTaskAfterSplit()
+
+    selectedGroupId.value = targetGroupId
+    filter.value = 'all'
+    if (aiSplitDialog.value.source === 'input') {
+      newTask.value = ''
+    }
+    addingTask.value = true
+    setTimeout(() => {
+      addingTask.value = false
+    }, 500)
+    closeAISplitDialog()
+  } catch (error) {
+    console.error('应用 AI 拆分失败:', error)
+    aiSplitDialog.value.loading = false
+    aiSplitDialog.value.error = error.message || t('app.aiSplitError')
+  }
+}
+
 const addTask = () => {
   if (newTask.value.trim() === '') {
     showEmptyError.value = true
@@ -943,11 +1473,12 @@ const deleteTask = (id) => {
   }
 }
 
-const updateTask = ({ id, text, groupIds }) => {
+const updateTask = ({ id, text, groupIds, completed }) => {
   const task = tasks.value.find(t => t.id === id)
   if (task) {
     if (text != null) task.text = text
     if (groupIds != null) task.groupIds = groupIds
+    if (completed != null) task.completed = Boolean(completed)
     saveTasksToStorage()
   }
 }
@@ -1452,6 +1983,50 @@ onUnmounted(() => {
     0 2px 6px rgba(var(--primary-rgb, 255, 140, 0), 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.15),
     inset 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.ai-split-input-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(32px, 8vw, 40px);
+  height: clamp(32px, 8vw, 40px);
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid rgba(var(--primary-rgb, 255, 179, 71), 0.28);
+  border-radius: clamp(10px, 2vw, 14px);
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--text-on-color, var(--theme-color));
+  cursor: pointer;
+  transition: all 0.22s ease;
+  flex-shrink: 0;
+}
+
+.ai-split-input-btn svg {
+  width: clamp(16px, 4vw, 19px);
+  height: clamp(16px, 4vw, 19px);
+}
+
+.ai-split-input-btn.suggested {
+  background: var(--theme-gradient, var(--theme-color));
+  color: var(--text-on-white, white);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(var(--primary-rgb, 255, 179, 71), 0.28);
+}
+
+.ai-split-input-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 18px rgba(var(--primary-rgb, 255, 179, 71), 0.22);
+}
+
+.ai-split-input-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  box-shadow: none;
+}
+
+.ai-split-input-btn.loading svg {
+  animation: spin 1s linear infinite;
 }
 
 .stats-header-actions {
@@ -2086,6 +2661,338 @@ onUnmounted(() => {
   background: #ef4444;
   color: white;
   box-shadow: 0 8px 18px rgba(239, 68, 68, 0.22);
+}
+
+.ai-split-modal {
+  width: min(520px, 100%);
+}
+
+.ai-split-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-on-color, var(--theme-color)) rgba(var(--primary-rgb, 255, 179, 71), 0.12);
+}
+
+.ai-split-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ai-split-body::-webkit-scrollbar-track {
+  margin: 8px 0;
+  background: rgba(var(--primary-rgb, 255, 179, 71), 0.12);
+  border-radius: 999px;
+}
+
+.ai-split-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    var(--primary-color, var(--theme-color)) 0%,
+    var(--secondary-color, var(--theme-color)) 100%
+  );
+  border: 2px solid rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+}
+
+.ai-split-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 120px;
+  padding: 18px;
+  border-radius: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.ai-split-state.error {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
+.ai-split-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(var(--primary-rgb, 255, 179, 71), 0.2);
+  border-top-color: var(--text-on-color, var(--theme-color));
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.ai-split-explanation {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--theme-color-light);
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-split-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-split-field label,
+.ai-split-section-label {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ai-target-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ai-target-options button {
+  min-height: 38px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all 0.18s ease;
+}
+
+.ai-target-options button:hover {
+  border-color: var(--theme-color);
+  color: var(--text-on-color, var(--theme-color));
+}
+
+.ai-target-options button.active {
+  background: var(--theme-color);
+  color: var(--text-on-white, white);
+  border-color: transparent;
+  box-shadow: 0 6px 16px rgba(var(--primary-rgb, 255, 179, 71), 0.22);
+}
+
+.ai-split-select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  outline: none;
+  padding: 0 12px;
+  color: #0f172a;
+  background: #f8fafc;
+  font-size: 14px;
+}
+
+.ai-split-select:focus {
+  border-color: var(--theme-color);
+  background: white;
+  box-shadow: 0 0 0 3px var(--theme-color-light);
+}
+
+.ai-split-textarea {
+  width: 100%;
+  min-height: 180px;
+  max-height: 320px;
+  resize: vertical;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  outline: none;
+  padding: 12px;
+  color: #0f172a;
+  background: #f8fafc;
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-on-color, var(--theme-color)) rgba(var(--primary-rgb, 255, 179, 71), 0.12);
+}
+
+.ai-split-textarea.compact {
+  min-height: 84px;
+  max-height: 180px;
+}
+
+.ai-split-textarea:focus {
+  border-color: var(--theme-color);
+  background: white;
+  box-shadow: 0 0 0 3px var(--theme-color-light);
+}
+
+.ai-split-textarea::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ai-split-textarea::-webkit-scrollbar-track {
+  background: rgba(var(--primary-rgb, 255, 179, 71), 0.12);
+  border-radius: 999px;
+}
+
+.ai-split-textarea::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    var(--primary-color, var(--theme-color)) 0%,
+    var(--secondary-color, var(--theme-color)) 100%
+  );
+  border: 2px solid rgba(255, 255, 255, 0.94);
+  border-radius: 999px;
+}
+
+.ai-count-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ai-count-options button {
+  min-height: 38px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all 0.18s ease;
+}
+
+.ai-count-options button:hover {
+  border-color: var(--theme-color);
+  color: var(--text-on-color, var(--theme-color));
+}
+
+.ai-count-options button.active {
+  background: var(--theme-color);
+  color: var(--text-on-white, white);
+  border-color: transparent;
+  box-shadow: 0 6px 16px rgba(var(--primary-rgb, 255, 179, 71), 0.22);
+}
+
+.ai-count-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ai-count-input-row.range {
+  flex-wrap: nowrap;
+}
+
+.ai-count-separator {
+  color: #94a3b8;
+  font-weight: 800;
+}
+
+.ai-count-input {
+  width: 82px;
+  height: 36px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  outline: none;
+  padding: 0 10px;
+  color: #0f172a;
+  background: #f8fafc;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.ai-count-input:focus {
+  border-color: var(--theme-color);
+  background: white;
+  box-shadow: 0 0 0 3px var(--theme-color-light);
+}
+
+.ai-regenerate-btn {
+  align-self: flex-start;
+  min-height: 36px;
+  border: none;
+  border-radius: 9px;
+  padding: 0 12px;
+  background: var(--theme-color-light);
+  color: var(--text-on-color, var(--theme-color));
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all 0.18s ease;
+}
+
+.ai-regenerate-btn:hover:not(:disabled) {
+  background: var(--theme-color-medium);
+  transform: translateY(-1px);
+}
+
+.ai-regenerate-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.ai-complete-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ai-complete-source input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--theme-color, #ff8c42);
+}
+
+.ai-split-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-split-task-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-task-remove-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 9px;
+  background: #fee2e2;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  transition: all 0.18s ease;
+}
+
+.ai-task-remove-btn:hover {
+  background: #fecaca;
+  transform: translateY(-1px);
+}
+
+.group-modal-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+  transform: none;
 }
 
 @media (max-width: 600px) {
@@ -3044,6 +3951,121 @@ onUnmounted(() => {
     inset 0 2px 4px rgba(0, 0, 0, 0.18);
 }
 
+.dark-mode .ai-split-input-btn {
+  background: #475569;
+  border-color: rgba(148, 163, 184, 0.24);
+  color: var(--theme-color, #fbbf24);
+}
+
+.dark-mode .ai-split-input-btn.suggested {
+  background: var(--theme-gradient, var(--theme-color));
+  color: var(--text-on-theme-dark, white);
+  border-color: transparent;
+}
+
+.dark-mode .ai-split-state {
+  background: #475569;
+  color: #cbd5e1;
+}
+
+.dark-mode .ai-split-state.error {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fca5a5;
+}
+
+.dark-mode .ai-split-explanation {
+  background: rgba(var(--primary-rgb, 255, 179, 71), 0.14);
+  color: #cbd5e1;
+}
+
+.dark-mode .ai-split-field label,
+.dark-mode .ai-split-section-label {
+  color: #e2e8f0;
+}
+
+.dark-mode .ai-target-options button {
+  background: #475569;
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #cbd5e1;
+}
+
+.dark-mode .ai-target-options button:hover {
+  color: var(--theme-color, #fbbf24);
+}
+
+.dark-mode .ai-target-options button.active {
+  background: var(--theme-color);
+  color: var(--text-on-theme-dark, white);
+}
+
+.dark-mode .ai-split-select {
+  background: #475569;
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #f1f5f9;
+}
+
+.dark-mode .ai-split-select:focus {
+  background: #526276;
+}
+
+.dark-mode .ai-split-textarea,
+.dark-mode .ai-count-input {
+  background: #475569;
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #f1f5f9;
+}
+
+.dark-mode .ai-split-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.dark-mode .ai-split-textarea:focus,
+.dark-mode .ai-count-input:focus {
+  background: #526276;
+}
+
+.dark-mode .ai-count-options button {
+  background: #475569;
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #cbd5e1;
+}
+
+.dark-mode .ai-count-options button:hover {
+  color: var(--theme-color, #fbbf24);
+}
+
+.dark-mode .ai-count-options button.active {
+  background: var(--theme-color);
+  color: var(--text-on-theme-dark, white);
+}
+
+.dark-mode .ai-count-input-row {
+  color: #cbd5e1;
+}
+
+.dark-mode .ai-regenerate-btn {
+  background: rgba(var(--primary-rgb, 255, 179, 71), 0.14);
+  color: var(--theme-color, #fbbf24);
+}
+
+.dark-mode .ai-regenerate-btn:hover:not(:disabled) {
+  background: rgba(var(--primary-rgb, 255, 179, 71), 0.22);
+}
+
+.dark-mode .ai-complete-source {
+  background: #475569;
+  color: #e2e8f0;
+}
+
+.dark-mode .ai-task-remove-btn {
+  background: rgba(248, 113, 113, 0.16);
+  color: #f87171;
+}
+
+.dark-mode .ai-task-remove-btn:hover {
+  background: rgba(248, 113, 113, 0.24);
+}
+
 /* 暗夜模式 - 语音按钮 */
 .dark-mode :deep(.voice-btn) {
   color: var(--theme-color, #fbbf24);
@@ -3088,6 +4110,27 @@ onUnmounted(() => {
 }
 
 @media (max-width: 600px) {
+  .ai-split-modal {
+    width: 100%;
+  }
+
+  .ai-target-options {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-count-options {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-split-textarea {
+    min-height: 160px;
+    max-height: 260px;
+  }
+
+  .ai-split-task-row {
+    align-items: stretch;
+  }
+
   .dark-mode .stats-card {
     padding: 16px;
     margin-bottom: 16px;
@@ -3121,6 +4164,19 @@ onUnmounted(() => {
 }
 
 @media (max-width: 500px) {
+  .ai-split-input-btn {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: 8px;
+  }
+
+  .ai-split-input-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
   .dark-mode .filter-btn {
     flex: 1 1 calc(33.333% - 6px);
     min-width: 80px;

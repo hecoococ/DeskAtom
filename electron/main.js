@@ -3,7 +3,9 @@ import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { setupVoiceIpcHandlers } from './voiceHandler.js'
+import { readAIConfig, splitTaskText, writeAIConfig } from './aiService.js'
 import {
+  addTasks,
   addTask,
   clearTasks,
   createGroup,
@@ -593,6 +595,41 @@ if (!gotTheLock) {
 
     ipcMain.handle('groups:reorder', async (event, { id, before_id, after_id }) => {
       return runTaskOperation(() => reorderGroup(id, { before_id, after_id }))
+    })
+
+    ipcMain.handle('tasks:addMany', async (event, payload) => {
+      return runTaskOperation(() => addTasks(payload?.tasks || [], { groupIds: payload?.groupIds }))
+    })
+
+    ipcMain.handle('ai:getConfig', async () => {
+      try {
+        const config = await readAIConfig()
+        return { success: true, config: { ...config, apiKey: config.apiKey ? '********' : '' } }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    })
+
+    ipcMain.handle('ai:saveConfig', async (event, config) => {
+      try {
+        const currentConfig = await readAIConfig()
+        const nextConfig = {
+          ...config,
+          apiKey: config?.apiKey === '********' ? currentConfig.apiKey : config?.apiKey
+        }
+        const savedConfig = await writeAIConfig(nextConfig)
+        return { success: true, config: { ...savedConfig, apiKey: savedConfig.apiKey ? '********' : '' } }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
+    })
+
+    ipcMain.handle('ai:splitTaskText', async (event, payload) => {
+      try {
+        return { success: true, result: await splitTaskText(payload) }
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : String(error) }
+      }
     })
 
     app.on('activate', () => {
