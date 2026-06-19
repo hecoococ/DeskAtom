@@ -21,12 +21,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   getTasks: () => ipcRenderer.invoke('tasks:get'),
   saveTasks: (tasks) => ipcRenderer.invoke('tasks:save', tasks),
+  getTaskData: () => ipcRenderer.invoke('taskData:get'),
+  saveTaskData: (taskData) => ipcRenderer.invoke('taskData:save', taskData),
   addTask: (text) => ipcRenderer.invoke('tasks:add', text),
   updateTask: (payload) => ipcRenderer.invoke('tasks:update', payload),
+  updateTasks: (updates) => ipcRenderer.invoke('tasks:updateMany', updates),
   toggleTask: (id) => ipcRenderer.invoke('tasks:toggle', id),
   deleteTask: (id) => ipcRenderer.invoke('tasks:delete', id),
   clearTasks: (filter) => ipcRenderer.invoke('tasks:clear', filter),
   reorderTask: (payload) => ipcRenderer.invoke('tasks:reorder', payload),
+  createGroup: (name) => ipcRenderer.invoke('groups:create', name),
+  updateGroup: (payload) => ipcRenderer.invoke('groups:update', payload),
+  deleteGroup: (payload) => ipcRenderer.invoke('groups:delete', payload),
+  reorderGroup: (payload) => ipcRenderer.invoke('groups:reorder', payload),
   onTasksChanged: (callback) => {
     const listener = (event, payload) => callback(payload)
     ipcRenderer.on('tasks:changed', listener)

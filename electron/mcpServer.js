@@ -6,54 +6,81 @@ import { z } from 'zod'
 import {
   addTask,
   addTasks,
+  addTasksToGroups,
   clearTasks,
+  createGroup,
+  createGroups,
+  deleteGroup,
+  deleteGroups,
   deleteTask,
   deleteTasks,
+  filterTasksByGroup,
+  getGroupSummaries,
   getTaskSummary,
+  readTaskData,
   readTasks,
+  removeTasksFromGroups,
+  reorderGroup,
   reorderTask,
   setTasksCompleted,
+  setTasksGroups,
   toggleTask,
   toggleTasks,
+  updateGroup,
+  updateGroups,
   updateTask,
-  updateTasks
+  updateTasks,
+  ALL_GROUP_ID
 } from './taskStore.js'
 
 const CHARACTER_LIMIT = 25000
 
 const ResponseFormatSchema = z.enum(['markdown', 'json'])
 const TaskFilterSchema = z.enum(['all', 'pending', 'completed'])
+const GroupIdsSchema = z.array(z.string().min(1).max(100)).min(1).max(20)
 
 const ListTasksSchema = z.object({
   filter: TaskFilterSchema.default('all').describe("Filter tasks by status: 'all', 'pending', or 'completed'."),
+  group_id: z.string().min(1).max(100).default(ALL_GROUP_ID).describe("Group id to inspect, or 'all' for every task."),
   limit: z.number().int().min(1).max(100).default(20).describe('Maximum tasks to return.'),
   offset: z.number().int().min(0).default(0).describe('Number of matching tasks to skip.'),
   response_format: ResponseFormatSchema.default('markdown').describe("Return 'markdown' for reading or 'json' for structured processing.")
 }).strict()
 
 const AddTaskSchema = z.object({
-  text: z.string().min(1).max(1000).describe('Task text to add. Whitespace is trimmed.')
+  text: z.string().min(1).max(1000).describe('Task text to add. Whitespace is trimmed.'),
+  group_ids: GroupIdsSchema.optional().describe('Groups for the new task. Defaults to inbox.')
 }).strict()
 
 const AddTasksSchema = z.object({
-  tasks: z.array(z.string().min(1).max(1000)).min(1).max(100).describe('Task texts to add in one call. Whitespace is trimmed.')
+  tasks: z.array(z.union([
+    z.string().min(1).max(1000),
+    z.object({
+      text: z.string().min(1).max(1000),
+      group_ids: GroupIdsSchema.optional()
+    }).strict()
+  ])).min(1).max(100).describe('Task texts or task objects to add.'),
+  group_ids: GroupIdsSchema.optional().describe('Default groups for every item that does not specify group_ids.')
 }).strict()
 
 const TaskStatsSchema = z.object({
-  response_format: ResponseFormatSchema.default('markdown').describe("Return 'markdown' for reading or 'json' for structured processing.")
+  group_id: z.string().min(1).max(100).default(ALL_GROUP_ID).describe("Group id to summarize, or 'all'."),
+  response_format: ResponseFormatSchema.default('markdown').describe("Return 'markdown' for reading or 'json'.")
 }).strict()
 
 const UpdateTaskSchema = z.object({
   id: z.number().int().describe('Task id to update.'),
   text: z.string().min(1).max(1000).optional().describe('New task text. Whitespace is trimmed.'),
-  completed: z.boolean().optional().describe('Set whether the task is completed.')
+  completed: z.boolean().optional().describe('Set whether the task is completed.'),
+  group_ids: GroupIdsSchema.optional().describe('Replace the task group ids.')
 }).strict()
 
 const UpdateTasksSchema = z.object({
   updates: z.array(z.object({
     id: z.number().int().describe('Task id to update.'),
     text: z.string().min(1).max(1000).optional().describe('New task text. Whitespace is trimmed.'),
-    completed: z.boolean().optional().describe('Set whether the task is completed.')
+    completed: z.boolean().optional().describe('Set whether the task is completed.'),
+    group_ids: GroupIdsSchema.optional().describe('Replace the task group ids.')
   }).strict()).min(1).max(100).describe('Updates to apply in one atomic batch.')
 }).strict()
 
@@ -70,14 +97,65 @@ const SetTasksCompletedSchema = z.object({
   completed: z.boolean().describe('Final completion state for all listed tasks.')
 }).strict()
 
+const SetTasksGroupsSchema = z.object({
+  ids: z.array(z.number().int()).min(1).max(100).describe('Task ids to update.'),
+  group_ids: GroupIdsSchema.describe('Final group ids for all listed tasks.')
+}).strict()
+
+const AddRemoveTaskGroupsSchema = z.object({
+  ids: z.array(z.number().int()).min(1).max(100).describe('Task ids to update.'),
+  group_ids: GroupIdsSchema.describe('Group ids to add or remove.')
+}).strict()
+
 const ClearTasksSchema = z.object({
-  filter: z.enum(['all', 'completed']).default('completed').describe("Clear 'completed' tasks by default, or pass 'all' to clear everything.")
+  filter: z.enum(['all', 'completed']).default('completed').describe("Clear 'completed' tasks by default, or pass 'all' to clear everything."),
+  group_id: z.string().min(1).max(100).default(ALL_GROUP_ID).describe("Limit clearing to one group, or 'all'.")
 }).strict()
 
 const ReorderTaskSchema = z.object({
   id: z.number().int().describe('Task id to move.'),
   before_id: z.number().int().optional().describe('Move the task before this task id. Mutually exclusive with after_id.'),
   after_id: z.number().int().optional().describe('Move the task after this task id. Mutually exclusive with before_id.')
+}).strict()
+
+const ListGroupsSchema = z.object({
+  response_format: ResponseFormatSchema.default('markdown').describe("Return 'markdown' for reading or 'json'.")
+}).strict()
+
+const CreateGroupSchema = z.object({
+  name: z.string().min(1).max(100).describe('Group name.')
+}).strict()
+
+const CreateGroupsSchema = z.object({
+  names: z.array(z.string().min(1).max(100)).min(1).max(50).describe('Group names to create.')
+}).strict()
+
+const UpdateGroupSchema = z.object({
+  id: z.string().min(1).max(100).describe('Group id.'),
+  name: z.string().min(1).max(100).describe('New group name.')
+}).strict()
+
+const UpdateGroupsSchema = z.object({
+  updates: z.array(z.object({
+    id: z.string().min(1).max(100),
+    name: z.string().min(1).max(100)
+  }).strict()).min(1).max(50).describe('Group renames to apply.')
+}).strict()
+
+const DeleteGroupSchema = z.object({
+  id: z.string().min(1).max(100).describe('Group id.'),
+  mode: z.enum(['move_tasks_to_inbox', 'delete_tasks']).default('move_tasks_to_inbox').describe('How to handle tasks that only belong to the deleted group.')
+}).strict()
+
+const DeleteGroupsSchema = z.object({
+  ids: z.array(z.string().min(1).max(100)).min(1).max(50).describe('Group ids.'),
+  mode: z.enum(['move_tasks_to_inbox', 'delete_tasks']).default('move_tasks_to_inbox').describe('How to handle tasks that only belong to deleted groups.')
+}).strict()
+
+const ReorderGroupSchema = z.object({
+  id: z.string().min(1).max(100).describe('Group id to move.'),
+  before_id: z.string().min(1).max(100).optional().describe('Move before this group id.'),
+  after_id: z.string().min(1).max(100).optional().describe('Move after this group id.')
 }).strict()
 
 function filterTasks(tasks, filter) {
@@ -90,19 +168,38 @@ function taskStatus(task) {
   return task.completed ? 'completed' : 'pending'
 }
 
-function formatTask(task) {
+function groupNameMap(groups) {
+  return new Map(groups.map((group) => [group.id, group.name]))
+}
+
+function formatTask(task, groups = []) {
+  const names = groupNameMap(groups)
   return {
     id: task.id,
     text: task.text,
     completed: task.completed,
-    status: taskStatus(task)
+    status: taskStatus(task),
+    group_ids: task.groupIds,
+    group_names: task.groupIds.map((groupId) => names.get(groupId)).filter(Boolean)
   }
 }
 
-function formatMarkdownList({ tasks, total, count, offset, has_more, next_offset, summary, filter }) {
+function formatGroup(group, tasks) {
+  return {
+    id: group.id,
+    name: group.name,
+    createdAt: group.createdAt,
+    summary: getTaskSummary(tasks, group.id)
+  }
+}
+
+function formatMarkdownList({ tasks, total, count, offset, has_more, next_offset, summary, filter, group_id, groups }) {
+  const names = groupNameMap(groups)
+  const groupLabel = group_id === ALL_GROUP_ID ? 'all groups' : `${names.get(group_id) || group_id} (${group_id})`
   const lines = [
     `# DeskAtom Tasks (${filter})`,
     '',
+    `Group: ${groupLabel}`,
     `Total: ${summary.total} | Pending: ${summary.pending} | Completed: ${summary.completed}`,
     `Showing ${count} of ${total} matching tasks from offset ${offset}.`,
     ''
@@ -112,7 +209,8 @@ function formatMarkdownList({ tasks, total, count, offset, has_more, next_offset
     lines.push('No tasks matched this request.')
   } else {
     for (const task of tasks) {
-      lines.push(`- [${task.completed ? 'x' : ' '}] ${task.text} (id: ${task.id})`)
+      const groupNames = task.groupIds.map((groupId) => names.get(groupId) || groupId).join(', ')
+      lines.push(`- [${task.completed ? 'x' : ' '}] ${task.text} (id: ${task.id}; groups: ${groupNames})`)
     }
   }
 
@@ -148,16 +246,36 @@ function errorText(error) {
   }
 }
 
+function normalizeUpdatePayload(updates) {
+  const payload = {}
+  if (Object.prototype.hasOwnProperty.call(updates, 'text')) payload.text = updates.text
+  if (Object.prototype.hasOwnProperty.call(updates, 'completed')) payload.completed = updates.completed
+  if (Object.prototype.hasOwnProperty.call(updates, 'group_ids')) payload.groupIds = updates.group_ids
+  return payload
+}
+
+function normalizeAddItems(items) {
+  return items.map((item) => typeof item === 'string'
+    ? item
+    : { text: item.text, groupIds: item.group_ids }
+  )
+}
+
 function mutationResponse(action, result) {
+  const groups = result.groups || []
   const payload = {
     action,
-    task: result.task ? formatTask(result.task) : undefined,
-    added: result.added ? result.added.map(formatTask) : undefined,
-    updated: result.updated ? result.updated.map(formatTask) : undefined,
-    deleted: result.deleted ? result.deleted.map(formatTask) : undefined,
+    task: result.task ? formatTask(result.task, groups) : undefined,
+    group: result.group ? formatGroup(result.group, result.tasks) : undefined,
+    added: result.added ? result.added.map((task) => formatTask(task, groups)) : undefined,
+    updated: result.updated ? result.updated.map((task) => formatTask(task, groups)) : undefined,
+    deleted: result.deleted ? result.deleted.map((item) => item.text ? formatTask(item, groups) : formatGroup(item, result.tasks)) : undefined,
+    created: result.created ? result.created.map((group) => formatGroup(group, result.tasks)) : undefined,
+    deleted_tasks: result.deletedTasks ? result.deletedTasks.map((task) => formatTask(task, groups)) : undefined,
     cleared: result.cleared,
     summary: result.summary,
-    tasks: result.tasks.map(formatTask)
+    groups: groups.map((group) => formatGroup(group, result.tasks)),
+    tasks: result.tasks.map((task) => formatTask(task, groups))
   }
   return okText(jsonText(payload))
 }
@@ -167,333 +285,354 @@ const server = new McpServer({
   version: '1.0.0'
 })
 
-server.registerTool(
-  'deskatom_list_tasks',
-  {
-    title: 'List DeskAtom Tasks',
-    description: `List DeskAtom tasks from the local task store.
-
-Use this tool to inspect current tasks before modifying them. Supports status filtering, pagination, and markdown or JSON output.`,
-    inputSchema: ListTasksSchema,
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false
+server.registerTool('deskatom_list_tasks', {
+  title: 'List DeskAtom Tasks',
+  description: 'List DeskAtom tasks with status filtering, optional group filtering, pagination, and markdown or JSON output.',
+  inputSchema: ListTasksSchema,
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    const taskData = await readTaskData()
+    const groupedTasks = filterTasksByGroup(taskData.tasks, params.group_id)
+    const matchingTasks = filterTasks(groupedTasks, params.filter)
+    const pagedTasks = matchingTasks.slice(params.offset, params.offset + params.limit)
+    const response = {
+      total: matchingTasks.length,
+      count: pagedTasks.length,
+      offset: params.offset,
+      has_more: params.offset + pagedTasks.length < matchingTasks.length,
+      next_offset: params.offset + pagedTasks.length < matchingTasks.length ? params.offset + pagedTasks.length : null,
+      filter: params.filter,
+      group_id: params.group_id,
+      summary: getTaskSummary(groupedTasks),
+      groups: taskData.groups.map((group) => formatGroup(group, taskData.tasks)),
+      tasks: pagedTasks.map((task) => formatTask(task, taskData.groups))
     }
-  },
-  async (params) => {
-    try {
-      const tasks = await readTasks()
-      const matchingTasks = filterTasks(tasks, params.filter)
-      const pagedTasks = matchingTasks.slice(params.offset, params.offset + params.limit)
-      const response = {
-        total: matchingTasks.length,
-        count: pagedTasks.length,
-        offset: params.offset,
-        has_more: params.offset + pagedTasks.length < matchingTasks.length,
-        next_offset: params.offset + pagedTasks.length < matchingTasks.length ? params.offset + pagedTasks.length : null,
-        filter: params.filter,
-        summary: getTaskSummary(tasks),
-        tasks: pagedTasks.map(formatTask)
-      }
-
-      if (params.response_format === 'json') {
-        return okText(jsonText(response))
-      }
-
-      return okText(formatMarkdownList(response))
-    } catch (error) {
-      return errorText(error)
-    }
+    return okText(params.response_format === 'json' ? jsonText(response) : formatMarkdownList({ ...response, groups: taskData.groups }))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_get_task_stats',
-  {
-    title: 'Get DeskAtom Task Stats',
-    description: 'Return a lightweight count summary of all DeskAtom tasks: total, pending, completed, and completion percentage.',
-    inputSchema: TaskStatsSchema,
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      const tasks = await readTasks()
-      const summary = getTaskSummary(tasks)
-      const completion_percentage = summary.total === 0 ? 0 : Math.round((summary.completed / summary.total) * 100)
-      const response = { ...summary, completion_percentage }
-
-      if (params.response_format === 'json') {
-        return okText(jsonText(response))
-      }
-
-      return okText([
-        '# DeskAtom Task Stats',
-        '',
-        `- Total: ${response.total}`,
-        `- Pending: ${response.pending}`,
-        `- Completed: ${response.completed}`,
-        `- Completion: ${response.completion_percentage}%`
-      ].join('\n'))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_list_groups', {
+  title: 'List DeskAtom Groups',
+  description: 'List task groups and their task counts.',
+  inputSchema: ListGroupsSchema,
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    const taskData = await readTaskData()
+    const groups = taskData.groups.map((group) => formatGroup(group, taskData.tasks))
+    if (params.response_format === 'json') return okText(jsonText({ groups }))
+    return okText(['# DeskAtom Groups', '', ...groups.map((group) => `- ${group.name} (${group.id}) - ${group.summary.pending}/${group.summary.total} pending/total`)].join('\n'))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_add_task',
-  {
-    title: 'Add DeskAtom Task',
-    description: 'Add a new DeskAtom task to the top of the list. Returns the created task and updated summary.',
-    inputSchema: AddTaskSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-      openWorldHint: false
+server.registerTool('deskatom_get_task_stats', {
+  title: 'Get DeskAtom Task Stats',
+  description: 'Return task counts globally or for one group, including per-group summaries.',
+  inputSchema: TaskStatsSchema,
+  annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    const taskData = await readTaskData()
+    const tasks = filterTasksByGroup(taskData.tasks, params.group_id)
+    const summary = getTaskSummary(tasks)
+    const response = {
+      ...summary,
+      group_id: params.group_id,
+      completion_percentage: summary.total === 0 ? 0 : Math.round((summary.completed / summary.total) * 100),
+      groups: getGroupSummaries(taskData)
     }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('added', await addTask(params.text))
-    } catch (error) {
-      return errorText(error)
-    }
+    if (params.response_format === 'json') return okText(jsonText(response))
+    return okText([
+      '# DeskAtom Task Stats',
+      '',
+      `- Group: ${params.group_id}`,
+      `- Total: ${response.total}`,
+      `- Pending: ${response.pending}`,
+      `- Completed: ${response.completed}`,
+      `- Completion: ${response.completion_percentage}%`
+    ].join('\n'))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_add_tasks',
-  {
-    title: 'Add Multiple DeskAtom Tasks',
-    description: 'Add multiple DeskAtom tasks in one call. New tasks are inserted at the top in the same order as provided.',
-    inputSchema: AddTasksSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('added_many', await addTasks(params.tasks))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_add_task', {
+  title: 'Add DeskAtom Task',
+  description: 'Add a new task to the top of the list. Optionally assign it to one or more groups.',
+  inputSchema: AddTaskSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('added', await addTask(params.text, { groupIds: params.group_ids }))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_update_task',
-  {
-    title: 'Update DeskAtom Task',
-    description: 'Update a task text, completion state, or both. Provide at least one of text or completed.',
-    inputSchema: UpdateTaskSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      const updates = {}
-      if (Object.prototype.hasOwnProperty.call(params, 'text')) updates.text = params.text
-      if (Object.prototype.hasOwnProperty.call(params, 'completed')) updates.completed = params.completed
-      return mutationResponse('updated', await updateTask(params.id, updates))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_add_tasks', {
+  title: 'Add Multiple DeskAtom Tasks',
+  description: 'Add multiple tasks in one call. Use group_ids as defaults or per item for individual grouping.',
+  inputSchema: AddTasksSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('added_many', await addTasks(normalizeAddItems(params.tasks), { groupIds: params.group_ids }))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_update_tasks',
-  {
-    title: 'Update Multiple DeskAtom Tasks',
-    description: 'Update multiple tasks in one atomic batch. Each item can change text, completed state, or both.',
-    inputSchema: UpdateTasksSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('updated_many', await updateTasks(params.updates))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_update_task', {
+  title: 'Update DeskAtom Task',
+  description: 'Update a task text, completion state, groups, or any combination.',
+  inputSchema: UpdateTaskSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('updated', await updateTask(params.id, normalizeUpdatePayload(params)))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_set_tasks_completed',
-  {
-    title: 'Set Multiple DeskAtom Tasks Completed',
-    description: 'Set many tasks to completed or pending in one batch. Use this when many task statuses should become the same final state.',
-    inputSchema: SetTasksCompletedSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('set_completed_many', await setTasksCompleted(params.ids, params.completed))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_update_tasks', {
+  title: 'Update Multiple DeskAtom Tasks',
+  description: 'Update multiple tasks in one atomic batch, including text, completion state, and groups.',
+  inputSchema: UpdateTasksSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('updated_many', await updateTasks(params.updates.map((updates) => ({ ...normalizeUpdatePayload(updates), id: updates.id }))))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_toggle_task',
-  {
-    title: 'Toggle DeskAtom Task',
-    description: 'Toggle one task between pending and completed. Use update_task if you need an explicit final state.',
-    inputSchema: TaskIdSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('toggled', await toggleTask(params.id))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_set_tasks_completed', {
+  title: 'Set Multiple DeskAtom Tasks Completed',
+  description: 'Set many tasks to completed or pending in one batch.',
+  inputSchema: SetTasksCompletedSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('set_completed_many', await setTasksCompleted(params.ids, params.completed))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_toggle_tasks',
-  {
-    title: 'Toggle Multiple DeskAtom Tasks',
-    description: 'Toggle many tasks between pending and completed in one batch. Use set_tasks_completed for an explicit final state.',
-    inputSchema: TaskIdsSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: false,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('toggled_many', await toggleTasks(params.ids))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_set_tasks_groups', {
+  title: 'Set Multiple DeskAtom Tasks Groups',
+  description: 'Replace the groups for many tasks in one atomic batch.',
+  inputSchema: SetTasksGroupsSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('set_groups_many', await setTasksGroups(params.ids, params.group_ids))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_delete_task',
-  {
-    title: 'Delete DeskAtom Task',
-    description: 'Delete a single DeskAtom task by id. List tasks first if you need to find the id.',
-    inputSchema: TaskIdSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: true,
-      idempotentHint: true,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('deleted', await deleteTask(params.id))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_add_tasks_to_groups', {
+  title: 'Add Multiple Tasks To Groups',
+  description: 'Add one or more groups to many tasks without removing existing groups.',
+  inputSchema: AddRemoveTaskGroupsSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('added_tasks_to_groups', await addTasksToGroups(params.ids, params.group_ids))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_delete_tasks',
-  {
-    title: 'Delete Multiple DeskAtom Tasks',
-    description: 'Delete multiple DeskAtom tasks by id in one atomic batch. List tasks first if you need to find ids.',
-    inputSchema: TaskIdsSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: true,
-      idempotentHint: true,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('deleted_many', await deleteTasks(params.ids))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_remove_tasks_from_groups', {
+  title: 'Remove Multiple Tasks From Groups',
+  description: 'Remove one or more groups from many tasks. Tasks left with no groups move to inbox.',
+  inputSchema: AddRemoveTaskGroupsSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('removed_tasks_from_groups', await removeTasksFromGroups(params.ids, params.group_ids))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_clear_tasks',
-  {
-    title: 'Clear DeskAtom Tasks',
-    description: "Clear completed tasks by default. Pass filter='all' only when the user explicitly wants every task removed.",
-    inputSchema: ClearTasksSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: true,
-      idempotentHint: true,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('cleared', await clearTasks(params.filter))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_toggle_task', {
+  title: 'Toggle DeskAtom Task',
+  description: 'Toggle one task between pending and completed.',
+  inputSchema: TaskIdSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('toggled', await toggleTask(params.id))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
 
-server.registerTool(
-  'deskatom_reorder_task',
-  {
-    title: 'Reorder DeskAtom Task',
-    description: 'Move a task before or after another task. Provide exactly one of before_id or after_id.',
-    inputSchema: ReorderTaskSchema,
-    annotations: {
-      readOnlyHint: false,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false
-    }
-  },
-  async (params) => {
-    try {
-      return mutationResponse('reordered', await reorderTask(params.id, {
-        before_id: params.before_id,
-        after_id: params.after_id
-      }))
-    } catch (error) {
-      return errorText(error)
-    }
+server.registerTool('deskatom_toggle_tasks', {
+  title: 'Toggle Multiple DeskAtom Tasks',
+  description: 'Toggle many tasks between pending and completed in one batch.',
+  inputSchema: TaskIdsSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('toggled_many', await toggleTasks(params.ids))
+  } catch (error) {
+    return errorText(error)
   }
-)
+})
+
+server.registerTool('deskatom_delete_task', {
+  title: 'Delete DeskAtom Task',
+  description: 'Delete a single task by id.',
+  inputSchema: TaskIdSchema,
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('deleted', await deleteTask(params.id))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_delete_tasks', {
+  title: 'Delete Multiple DeskAtom Tasks',
+  description: 'Delete multiple tasks by id in one atomic batch.',
+  inputSchema: TaskIdsSchema,
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('deleted_many', await deleteTasks(params.ids))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_clear_tasks', {
+  title: 'Clear DeskAtom Tasks',
+  description: "Clear completed tasks by default. Pass filter='all' only when explicitly requested. Can be limited to one group.",
+  inputSchema: ClearTasksSchema,
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('cleared', await clearTasks(params.filter, { groupId: params.group_id }))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_reorder_task', {
+  title: 'Reorder DeskAtom Task',
+  description: 'Move a task before or after another task.',
+  inputSchema: ReorderTaskSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('reordered', await reorderTask(params.id, { before_id: params.before_id, after_id: params.after_id }))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_create_group', {
+  title: 'Create DeskAtom Group',
+  description: 'Create one task group.',
+  inputSchema: CreateGroupSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('created_group', await createGroup(params.name))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_create_groups', {
+  title: 'Create Multiple DeskAtom Groups',
+  description: 'Create multiple task groups in one batch.',
+  inputSchema: CreateGroupsSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('created_groups', await createGroups(params.names))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_update_group', {
+  title: 'Update DeskAtom Group',
+  description: 'Rename one task group. The inbox group cannot be renamed.',
+  inputSchema: UpdateGroupSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('updated_group', await updateGroup(params.id, { name: params.name }))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_update_groups', {
+  title: 'Update Multiple DeskAtom Groups',
+  description: 'Rename multiple task groups in one atomic batch.',
+  inputSchema: UpdateGroupsSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('updated_groups', await updateGroups(params.updates))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_delete_group', {
+  title: 'Delete DeskAtom Group',
+  description: 'Delete one group. Use mode to move exclusive tasks to inbox or delete exclusive tasks.',
+  inputSchema: DeleteGroupSchema,
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('deleted_group', await deleteGroup(params.id, params.mode))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_delete_groups', {
+  title: 'Delete Multiple DeskAtom Groups',
+  description: 'Delete multiple groups in one batch. Multi-group tasks only lose deleted groups; exclusive tasks follow mode.',
+  inputSchema: DeleteGroupsSchema,
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('deleted_groups', await deleteGroups(params.ids, params.mode))
+  } catch (error) {
+    return errorText(error)
+  }
+})
+
+server.registerTool('deskatom_reorder_group', {
+  title: 'Reorder DeskAtom Group',
+  description: 'Move a group before or after another group. Inbox stays first.',
+  inputSchema: ReorderGroupSchema,
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+}, async (params) => {
+  try {
+    return mutationResponse('reordered_group', await reorderGroup(params.id, { before_id: params.before_id, after_id: params.after_id }))
+  } catch (error) {
+    return errorText(error)
+  }
+})
 
 async function main() {
   const transport = new StdioServerTransport()

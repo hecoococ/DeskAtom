@@ -37,7 +37,7 @@
 
       <!-- 空状态 -->
       <div v-if="pendingTasks.length === 0" class="focus-empty">
-        <div class="focus-empty-content">
+        <div class="focus-empty-content" :style="emptyStateStyle">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" class="focus-empty-icon">
             <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -251,6 +251,39 @@ const taskItemStyle = computed(() => {
   }
 })
 
+const emptyStateStyle = computed(() => {
+  const isDualMode = themeColorMode.value === 'dual'
+  const opacityValue = Math.max(0.72, opacity.value / 100)
+  const p = primaryColor.value
+  const s = isDualMode ? secondaryColor.value : {
+    r: Math.max(0, Math.floor(p.r * 0.72)),
+    g: Math.max(0, Math.floor(p.g * 0.72)),
+    b: Math.max(0, Math.floor(p.b * 0.72))
+  }
+  const average = {
+    r: Math.round((p.r + s.r) / 2),
+    g: Math.round((p.g + s.g) / 2),
+    b: Math.round((p.b + s.b) / 2)
+  }
+  const textColor = getContrastColor(average.r, average.g, average.b)
+
+  if (darkMode.value) {
+    return {
+      background: `linear-gradient(135deg, rgba(51, 65, 85, ${opacityValue}), rgba(30, 41, 59, ${opacityValue}))`,
+      color: `rgb(${p.r}, ${p.g}, ${p.b})`,
+      borderColor: `rgba(${p.r}, ${p.g}, ${p.b}, 0.28)`,
+      '--focus-empty-icon-color': `rgb(${p.r}, ${p.g}, ${p.b})`
+    }
+  }
+
+  return {
+    background: `linear-gradient(135deg, rgba(${p.r}, ${p.g}, ${p.b}, ${opacityValue}), rgba(${s.r}, ${s.g}, ${s.b}, ${opacityValue}))`,
+    color: textColor,
+    borderColor: `rgba(${p.r}, ${p.g}, ${p.b}, 0.26)`,
+    '--focus-empty-icon-color': textColor
+  }
+})
+
 // 计算滚动条退出按钮样式
 const scrollbarExitStyle = computed(() => {
   const opacityValue = opacity.value / 100
@@ -279,39 +312,12 @@ const toggleTask = (id) => {
     task.id === id ? { ...task, completed: !task.completed } : task
   )
   emit('update-tasks', updatedTasks)
-  saveTasksToStorage(updatedTasks)
 }
 
 // 删除任务
 const deleteTask = (id) => {
   const updatedTasks = props.tasks.filter(task => task.id !== id)
   emit('update-tasks', updatedTasks)
-  saveTasksToStorage(updatedTasks)
-}
-
-const serializeTasks = (taskList) => {
-  return taskList.map((task) => ({
-    id: Number(task.id),
-    text: String(task.text || ''),
-    completed: Boolean(task.completed)
-  }))
-}
-
-// 保存到本地存储
-const saveTasksToStorage = (tasks) => {
-  const plainTasks = serializeTasks(tasks)
-
-  if (window.electronAPI && window.electronAPI.saveTasks) {
-    window.electronAPI.saveTasks(plainTasks).then((result) => {
-      if (!result?.success) {
-        console.error('保存任务失败:', result?.error)
-      }
-    }).catch((error) => {
-      console.error('保存任务失败:', error)
-    })
-  } else {
-    localStorage.setItem('tasks', JSON.stringify(plainTasks))
-  }
 }
 </script>
 
@@ -461,19 +467,21 @@ const saveTasksToStorage = (tasks) => {
   align-items: center;
   gap: 16px;
   padding: 40px 60px;
-  background: white;
   border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(var(--glass-blur, 8px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 8px));
 }
 
 .focus-empty-icon {
-  color: #10b981;
+  color: var(--focus-empty-icon-color, currentColor);
 }
 
 .focus-empty span {
   font-size: 16px;
-  color: #374151;
-  font-weight: 500;
+  color: currentColor;
+  font-weight: 700;
 }
 
 /* 滚动条退出按钮 - 页面右侧 */

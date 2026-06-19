@@ -6,13 +6,20 @@ import { setupVoiceIpcHandlers } from './voiceHandler.js'
 import {
   addTask,
   clearTasks,
+  createGroup,
+  deleteGroup,
   deleteTask,
   getTasksFilePath,
   getTaskSummary,
+  readTaskData,
   readTasks,
+  reorderGroup,
   reorderTask,
   toggleTask,
+  updateGroup,
   updateTask,
+  updateTasks,
+  writeTaskData,
   writeTasks
 } from './taskStore.js'
 
@@ -54,11 +61,14 @@ async function syncTaskCountFromStore() {
 
 async function broadcastTasksFromStore() {
   try {
-    const tasks = await readTasks()
+    const taskData = await readTaskData()
+    const tasks = taskData.tasks
     updateTaskCount(getTaskSummary(tasks).pending)
 
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('tasks:changed', {
+        taskData,
+        groups: taskData.groups,
         tasks,
         summary: getTaskSummary(tasks)
       })
@@ -500,8 +510,27 @@ if (!gotTheLock) {
 
     ipcMain.handle('tasks:get', async () => {
       return runTaskOperation(async () => {
-        const tasks = await readTasks()
-        return { tasks, summary: getTaskSummary(tasks) }
+        const taskData = await readTaskData()
+        return { taskData, groups: taskData.groups, tasks: taskData.tasks, summary: getTaskSummary(taskData.tasks) }
+      })
+    })
+
+    ipcMain.handle('taskData:get', async () => {
+      return runTaskOperation(async () => {
+        const taskData = await readTaskData()
+        return { taskData, groups: taskData.groups, tasks: taskData.tasks, summary: getTaskSummary(taskData.tasks) }
+      })
+    })
+
+    ipcMain.handle('taskData:save', async (event, taskData) => {
+      return runTaskOperation(async () => {
+        const savedTaskData = await writeTaskData(taskData)
+        return {
+          taskData: savedTaskData,
+          groups: savedTaskData.groups,
+          tasks: savedTaskData.tasks,
+          summary: getTaskSummary(savedTaskData.tasks)
+        }
       })
     })
 
@@ -524,7 +553,14 @@ if (!gotTheLock) {
       if (Object.prototype.hasOwnProperty.call(payload || {}, 'completed')) {
         updates.completed = payload.completed
       }
+      if (Object.prototype.hasOwnProperty.call(payload || {}, 'groupIds')) {
+        updates.groupIds = payload.groupIds
+      }
       return runTaskOperation(() => updateTask(payload?.id, updates))
+    })
+
+    ipcMain.handle('tasks:updateMany', async (event, updates) => {
+      return runTaskOperation(() => updateTasks(updates))
     })
 
     ipcMain.handle('tasks:toggle', async (event, id) => {
@@ -541,6 +577,22 @@ if (!gotTheLock) {
 
     ipcMain.handle('tasks:reorder', async (event, { id, before_id, after_id }) => {
       return runTaskOperation(() => reorderTask(id, { before_id, after_id }))
+    })
+
+    ipcMain.handle('groups:create', async (event, name) => {
+      return runTaskOperation(() => createGroup(name))
+    })
+
+    ipcMain.handle('groups:update', async (event, payload) => {
+      return runTaskOperation(() => updateGroup(payload?.id, { name: payload?.name }))
+    })
+
+    ipcMain.handle('groups:delete', async (event, payload) => {
+      return runTaskOperation(() => deleteGroup(payload?.id, payload?.mode))
+    })
+
+    ipcMain.handle('groups:reorder', async (event, { id, before_id, after_id }) => {
+      return runTaskOperation(() => reorderGroup(id, { before_id, after_id }))
     })
 
     app.on('activate', () => {

@@ -24,6 +24,15 @@
     <div class="action-btns">
       <template v-if="!isEditing">
         <button
+          @click.stop="$emit('manage-groups', task)"
+          class="group-btn"
+          :title="t('todoItem.manageGroups')"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M4 6h6l2 2h8v10a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button
           @click="startEdit"
           class="edit-btn"
           :title="t('todoItem.editTask')"
@@ -80,7 +89,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['toggle', 'delete', 'update'])
+const emit = defineEmits(['toggle', 'delete', 'update', 'manage-groups'])
 
 const isEditing = ref(false)
 const editText = ref('')
@@ -119,6 +128,7 @@ const saveEdit = () => {
   border-radius: 12px;
   box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
   border: 2px solid transparent;
+  position: relative;
 }
 
 .task-card:hover {
@@ -272,6 +282,7 @@ const saveEdit = () => {
 }
 
 .edit-btn,
+.group-btn,
 .cancel-btn,
 .save-btn,
 .delete-btn {
@@ -290,8 +301,18 @@ const saveEdit = () => {
 }
 
 .task-card:hover .edit-btn,
+.task-card:hover .group-btn,
 .task-card:hover .delete-btn {
   opacity: 1;
+}
+
+.group-btn {
+  color: #64748b;
+}
+
+.group-btn:hover {
+  background: #f1f5f9;
+  transform: scale(1.1);
 }
 
 .edit-btn {
@@ -394,6 +415,7 @@ const saveEdit = () => {
   }
 
   .delete-btn,
+  .group-btn,
   .edit-btn {
     opacity: 1;
   }
@@ -404,6 +426,7 @@ const saveEdit = () => {
   }
 
   .edit-btn,
+  .group-btn,
   .cancel-btn,
   .save-btn,
   .delete-btn {

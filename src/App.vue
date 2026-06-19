@@ -105,6 +105,29 @@
           </button>
         </div>
 
+        <div class="group-section">
+          <button
+            v-for="groupOption in groupOptions"
+            :key="groupOption.id"
+            @click="selectGroup(groupOption.id)"
+            :class="['group-tab', { active: selectedGroupId === groupOption.id }]"
+            type="button"
+          >
+            <span>{{ groupOption.name }}</span>
+            <span class="group-count">{{ getGroupTaskCount(groupOption.id) }}</span>
+          </button>
+          <button class="group-add-btn" type="button" @click="createNewGroup" :title="t('app.createGroup')">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+              <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div v-if="activeRealGroup" class="group-actions">
+          <button type="button" class="group-action-btn" @click="renameSelectedGroup">{{ t('app.renameGroup') }}</button>
+          <button type="button" class="group-action-btn danger" @click="confirmDeleteSelectedGroup">{{ t('app.deleteGroup') }}</button>
+        </div>
+
         <div class="filter-section">
           <button
             v-for="filterOption in filterOptions"
@@ -131,6 +154,7 @@
               @toggle="toggleTask"
               @delete="deleteTask"
               @update="updateTask"
+              @manage-groups="openTaskGroupDialog"
               draggable="true"
               @dragstart="handleDragStart($event, task)"
               @dragover.prevent="handleDragOver($event, task)"
@@ -202,12 +226,120 @@
         @confirm="confirmDialog.onConfirm"
         @cancel="confirmDialog.show = false"
       />
+
+      <transition name="modal">
+        <div v-if="groupDialog.show" class="group-modal-overlay" @click="closeTaskGroupDialog">
+          <div class="group-modal-content" :class="{ 'dark-mode': appSettings.darkMode }" @click.stop>
+            <div class="group-modal-header">
+              <div class="group-modal-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 6h6l2 2h8v10a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="group-modal-title-wrap">
+                <h3>{{ t('app.taskGroupsTitle') }}</h3>
+                <p>{{ groupDialog.task?.text }}</p>
+              </div>
+            </div>
+            <div class="group-modal-body">
+              <form class="group-modal-add" @submit.prevent="createGroupFromDialog">
+                <input
+                  v-model="newGroupName"
+                  :placeholder="t('app.createGroupPrompt')"
+                  class="group-modal-input"
+                >
+                <button type="submit" class="group-modal-add-btn" :title="t('app.createGroup')">
+                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </button>
+              </form>
+              <label
+                v-for="group in groups"
+                :key="group.id"
+                class="group-modal-option"
+              >
+                <input
+                  type="checkbox"
+                  :checked="groupDialog.selectedIds.includes(group.id)"
+                  :disabled="groupDialog.selectedIds.length === 1 && groupDialog.selectedIds.includes(group.id)"
+                  @change="toggleDialogGroup(group.id)"
+                >
+                <span>{{ group.name }}</span>
+                <small>{{ getGroupTaskCount(group.id) }}</small>
+              </label>
+            </div>
+            <div class="group-modal-footer">
+              <button type="button" class="group-modal-btn secondary" @click="closeTaskGroupDialog">{{ t('dialog.cancel') }}</button>
+              <button type="button" class="group-modal-btn primary" @click="saveTaskGroupDialog">{{ t('dialog.confirm') }}</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+
+      <transition name="modal">
+        <div v-if="groupEditor.show" class="group-modal-overlay" @click="closeGroupEditor">
+          <div class="group-modal-content compact" :class="{ 'dark-mode': appSettings.darkMode }" @click.stop>
+            <div class="group-modal-header">
+              <div class="group-modal-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 6h6l2 2h8v10a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="group-modal-title-wrap">
+                <h3>{{ groupEditor.mode === 'rename' ? t('app.renameGroup') : t('app.createGroup') }}</h3>
+              </div>
+            </div>
+            <form class="group-editor-form" @submit.prevent="submitGroupEditor">
+              <input
+                v-model="groupEditor.name"
+                class="group-modal-input"
+                :placeholder="groupEditor.mode === 'rename' ? t('app.renameGroupPrompt') : t('app.createGroupPrompt')"
+                autofocus
+              >
+              <div class="group-modal-footer inline-footer">
+                <button type="button" class="group-modal-btn secondary" @click="closeGroupEditor">{{ t('dialog.cancel') }}</button>
+                <button type="submit" class="group-modal-btn primary">{{ t('dialog.confirm') }}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </transition>
+
+      <transition name="modal">
+        <div v-if="deleteGroupDialog.show" class="group-modal-overlay" @click="closeDeleteGroupDialog">
+          <div class="group-modal-content compact" :class="{ 'dark-mode': appSettings.darkMode }" @click.stop>
+            <div class="group-modal-header danger">
+              <div class="group-modal-icon danger">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div class="group-modal-title-wrap">
+                <h3>{{ t('app.deleteGroupTitle') }}</h3>
+                <p>{{ t('app.deleteGroupDesc', { name: deleteGroupDialog.group?.name || '' }) }}</p>
+              </div>
+            </div>
+            <div class="delete-group-actions">
+              <button type="button" class="delete-choice cancel" @click="closeDeleteGroupDialog">
+                {{ t('dialog.cancel') }}
+              </button>
+              <button type="button" class="delete-choice soft" @click="submitDeleteGroup('move_tasks_to_inbox')">
+                {{ t('app.deleteGroupOnly') }}
+              </button>
+              <button type="button" class="delete-choice danger" @click="submitDeleteGroup('delete_tasks')">
+                {{ t('app.deleteGroupAndTasks') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
     </template>
 
     <!-- 专注模式 -->
     <FocusMode
       v-if="focusMode"
-      :tasks="tasks"
+      :tasks="focusModeTasks"
       :task-color="appSettings.themeColor"
       :dark-mode="appSettings.darkMode"
       :glass-blur="appSettings.glassBlur"
@@ -238,6 +370,8 @@ locale.value = 'zh'
 
 const newTask = ref('')
 const tasks = ref([])
+const groups = ref([{ id: 'inbox', name: '收件箱', createdAt: 0 }])
+const selectedGroupId = ref('all')
 const filter = ref('all')
 const showEmptyError = ref(false)
 const showQuickInput = ref(false)
@@ -258,6 +392,26 @@ const confirmDialog = ref({
   message: '',
   onConfirm: null
 })
+
+const groupDialog = ref({
+  show: false,
+  task: null,
+  selectedIds: []
+})
+const groupEditor = ref({
+  show: false,
+  mode: 'create',
+  groupId: null,
+  name: ''
+})
+const deleteGroupDialog = ref({
+  show: false,
+  group: null
+})
+const newGroupName = ref('')
+
+const INBOX_GROUP_ID = 'inbox'
+const ALL_GROUP_ID = 'all'
 
 // 配色方案配置
 const colorSchemes = [
@@ -306,6 +460,9 @@ const appStyle = computed(() => {
   const textOnColor = (isLightTheme && !appSettings.darkMode) ? '#1f2937' : `rgb(${p.r}, ${p.g}, ${p.b})`
   // 暗夜模式下主题色上的文字：主题色偏白时使用灰色，否则使用白色
   const textOnThemeDark = (isLightTheme && appSettings.darkMode) ? '#94a3b8' : '#ffffff'
+  const filterColor = appSettings.themeColorMode === 'dual' ? appSettings.secondaryColor : p
+  const filterYiq = ((filterColor.r * 299) + (filterColor.g * 587) + (filterColor.b * 114)) / 1000
+  const textOnFilter = filterYiq >= 180 ? '#0f172a' : '#ffffff'
   
   if (appSettings.themeColorMode === 'dual') {
     // 双色模式：使用主色和辅色
@@ -330,6 +487,11 @@ const appStyle = computed(() => {
     '--primary-rgb': `${p.r}, ${p.g}, ${p.b}`,
     '--secondary-color': appSettings.themeColorMode === 'dual' ? `rgb(${appSettings.secondaryColor.r}, ${appSettings.secondaryColor.g}, ${appSettings.secondaryColor.b})` : `rgb(${p.r}, ${p.g}, ${p.b})`,
     '--secondary-rgb': appSettings.themeColorMode === 'dual' ? `${appSettings.secondaryColor.r}, ${appSettings.secondaryColor.g}, ${appSettings.secondaryColor.b}` : `${p.r}, ${p.g}, ${p.b}`,
+    '--filter-color': `rgb(${filterColor.r}, ${filterColor.g}, ${filterColor.b})`,
+    '--filter-rgb': `${filterColor.r}, ${filterColor.g}, ${filterColor.b}`,
+    '--filter-color-light': `rgba(${filterColor.r}, ${filterColor.g}, ${filterColor.b}, 0.12)`,
+    '--filter-color-medium': `rgba(${filterColor.r}, ${filterColor.g}, ${filterColor.b}, 0.24)`,
+    '--text-on-filter': textOnFilter,
     '--window-opacity': appSettings.opacity / 100,
     '--glass-blur': `${appSettings.glassBlur}px`,
     '--glass-gradient': glassGradient,
@@ -368,8 +530,22 @@ const filterOptions = computed(() => [
   { value: 'completed', label: t('app.filterCompleted'), icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 8l3 3 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' }
 ])
 
-const totalTasks = computed(() => tasks.value.length)
-const completedTasks = computed(() => tasks.value.filter(task => task.completed).length)
+const groupOptions = computed(() => [
+  { id: ALL_GROUP_ID, name: t('app.allGroups') },
+  ...groups.value
+])
+
+const activeRealGroup = computed(() => selectedGroupId.value !== ALL_GROUP_ID && groups.value.some((group) => group.id === selectedGroupId.value))
+
+const tasksInSelectedGroup = computed(() => {
+  if (selectedGroupId.value === ALL_GROUP_ID) return tasks.value
+  return tasks.value.filter((task) => normalizeTaskGroupIds(task).includes(selectedGroupId.value))
+})
+
+const focusModeTasks = computed(() => tasksInSelectedGroup.value)
+
+const totalTasks = computed(() => tasksInSelectedGroup.value.length)
+const completedTasks = computed(() => tasksInSelectedGroup.value.filter(task => task.completed).length)
 const pendingTasks = computed(() => totalTasks.value - completedTasks.value)
 const progressPercentage = computed(() => {
   if (totalTasks.value === 0) return 0
@@ -427,11 +603,11 @@ const progressRows = computed(() => {
 const filteredTasks = computed(() => {
   switch (filter.value) {
     case 'pending':
-      return tasks.value.filter(task => !task.completed)
+      return tasksInSelectedGroup.value.filter(task => !task.completed)
     case 'completed':
-      return tasks.value.filter(task => task.completed)
+      return tasksInSelectedGroup.value.filter(task => task.completed)
     default:
-      return tasks.value
+      return tasksInSelectedGroup.value
   }
 })
 
@@ -441,6 +617,202 @@ const currentMoveClass = computed(() => {
   if (filteringTask.value) return 'task-item-move-filter'
   return ''
 })
+
+const normalizeTaskGroupIds = (task) => {
+  const validGroupIds = new Set(groups.value.map((group) => group.id))
+  const groupIds = Array.isArray(task.groupIds) ? task.groupIds.filter((groupId) => validGroupIds.has(groupId)) : []
+  return groupIds.length > 0 ? groupIds : [INBOX_GROUP_ID]
+}
+
+const getDefaultGroupIdsForNewTask = () => {
+  return selectedGroupId.value === ALL_GROUP_ID ? [INBOX_GROUP_ID] : [selectedGroupId.value]
+}
+
+const getGroupTaskCount = (groupId) => {
+  if (groupId === ALL_GROUP_ID) return tasks.value.length
+  return tasks.value.filter((task) => normalizeTaskGroupIds(task).includes(groupId)).length
+}
+
+const selectGroup = (groupId) => {
+  selectedGroupId.value = groupId
+  filter.value = 'all'
+}
+
+const createGroupByName = async (name, { selectCreated = true, addToDialog = false } = {}) => {
+  const trimmedName = name?.trim()
+  if (!trimmedName) return
+
+  if (window.electronAPI && window.electronAPI.createGroup) {
+    try {
+      const result = await window.electronAPI.createGroup(trimmedName)
+      applyTaskResult(result)
+      const createdGroupId = result?.group?.id || result?.groups?.find((group) => group.name === trimmedName)?.id
+      if (createdGroupId) {
+        if (selectCreated) selectedGroupId.value = createdGroupId
+        if (addToDialog && groupDialog.value.show && !groupDialog.value.selectedIds.includes(createdGroupId)) {
+          groupDialog.value.selectedIds = [...groupDialog.value.selectedIds, createdGroupId]
+        }
+      }
+    } catch (error) {
+      console.error('创建分组失败:', error)
+    }
+    return null
+  }
+
+  const id = `group-${Date.now()}`
+  groups.value.push({ id, name: trimmedName, createdAt: Date.now() })
+  if (selectCreated) selectedGroupId.value = id
+  if (addToDialog && groupDialog.value.show && !groupDialog.value.selectedIds.includes(id)) {
+    groupDialog.value.selectedIds = [...groupDialog.value.selectedIds, id]
+  }
+  saveTasksToStorage()
+  return id
+}
+
+const createNewGroup = () => {
+  groupEditor.value = {
+    show: true,
+    mode: 'create',
+    groupId: null,
+    name: ''
+  }
+}
+
+const renameSelectedGroup = () => {
+  if (!activeRealGroup.value) return
+  const currentGroup = groups.value.find((group) => group.id === selectedGroupId.value)
+  groupEditor.value = {
+    show: true,
+    mode: 'rename',
+    groupId: currentGroup?.id || null,
+    name: currentGroup?.name || ''
+  }
+}
+
+const renameGroupByName = async (groupId, name) => {
+  const trimmedName = name?.trim()
+  if (!groupId || !trimmedName) return
+  if (window.electronAPI && window.electronAPI.updateGroup) {
+    try {
+      applyTaskResult(await window.electronAPI.updateGroup({ id: groupId, name: trimmedName }))
+    } catch (error) {
+      console.error('重命名分组失败:', error)
+    }
+    return
+  }
+
+  const currentGroup = groups.value.find((group) => group.id === groupId)
+  if (currentGroup) currentGroup.name = trimmedName
+  saveTasksToStorage()
+}
+
+const closeGroupEditor = () => {
+  groupEditor.value = {
+    show: false,
+    mode: 'create',
+    groupId: null,
+    name: ''
+  }
+}
+
+const submitGroupEditor = async () => {
+  if (groupEditor.value.mode === 'rename') {
+    await renameGroupByName(groupEditor.value.groupId, groupEditor.value.name)
+  } else {
+    await createGroupByName(groupEditor.value.name)
+  }
+  closeGroupEditor()
+}
+
+const deleteSelectedGroup = (mode) => {
+  const groupId = selectedGroupId.value
+  if (groupId === ALL_GROUP_ID || groupId === INBOX_GROUP_ID) return
+
+  if (window.electronAPI && window.electronAPI.deleteGroup) {
+    window.electronAPI.deleteGroup({ id: groupId, mode }).then((result) => {
+      applyTaskResult(result)
+      selectedGroupId.value = ALL_GROUP_ID
+    }).catch((error) => {
+      console.error('删除分组失败:', error)
+    })
+    return
+  }
+
+  const deleteIds = new Set([groupId])
+  groups.value = groups.value.filter((group) => !deleteIds.has(group.id))
+  tasks.value = tasks.value.flatMap((task) => {
+    const remainingGroupIds = normalizeTaskGroupIds(task).filter((id) => !deleteIds.has(id))
+    if (mode === 'delete_tasks' && remainingGroupIds.length === 0) return []
+    return [{ ...task, groupIds: remainingGroupIds.length > 0 ? remainingGroupIds : [INBOX_GROUP_ID] }]
+  })
+  selectedGroupId.value = ALL_GROUP_ID
+  saveTasksToStorage()
+}
+
+const confirmDeleteSelectedGroup = () => {
+  const group = groups.value.find((item) => item.id === selectedGroupId.value)
+  if (!group || group.id === INBOX_GROUP_ID) return
+  deleteGroupDialog.value = {
+    show: true,
+    group
+  }
+}
+
+const closeDeleteGroupDialog = () => {
+  deleteGroupDialog.value = {
+    show: false,
+    group: null
+  }
+}
+
+const submitDeleteGroup = (mode) => {
+  const groupId = deleteGroupDialog.value.group?.id
+  if (!groupId) return
+  selectedGroupId.value = groupId
+  closeDeleteGroupDialog()
+  deleteSelectedGroup(mode)
+}
+
+const openTaskGroupDialog = (task) => {
+  groupDialog.value = {
+    show: true,
+    task,
+    selectedIds: normalizeTaskGroupIds(task)
+  }
+}
+
+const closeTaskGroupDialog = () => {
+  groupDialog.value = {
+    show: false,
+    task: null,
+    selectedIds: []
+  }
+}
+
+const toggleDialogGroup = (groupId) => {
+  const currentIds = groupDialog.value.selectedIds
+  const nextIds = currentIds.includes(groupId)
+    ? currentIds.filter((id) => id !== groupId)
+    : [...currentIds, groupId]
+
+  groupDialog.value.selectedIds = nextIds.length > 0 ? nextIds : [INBOX_GROUP_ID]
+}
+
+const saveTaskGroupDialog = () => {
+  if (!groupDialog.value.task) return
+  updateTask({
+    id: groupDialog.value.task.id,
+    groupIds: groupDialog.value.selectedIds.length > 0 ? groupDialog.value.selectedIds : [INBOX_GROUP_ID]
+  })
+  closeTaskGroupDialog()
+}
+
+const createGroupFromDialog = async () => {
+  const name = newGroupName.value.trim()
+  if (!name) return
+  await createGroupByName(name, { selectCreated: false, addToDialog: true })
+  newGroupName.value = ''
+}
 
 const addTask = () => {
   if (newTask.value.trim() === '') {
@@ -455,7 +827,8 @@ const addTask = () => {
   tasks.value.unshift({
     id: Date.now(),
     text: newTask.value.trim(),
-    completed: false
+    completed: false,
+    groupIds: getDefaultGroupIdsForNewTask()
   })
 
   saveTasksToStorage()
@@ -481,7 +854,8 @@ const handleAutoAddTask = (text) => {
   tasks.value.unshift({
     id: Date.now(),
     text: text.trim(),
-    completed: false
+    completed: false,
+    groupIds: getDefaultGroupIdsForNewTask()
   })
 
   saveTasksToStorage()
@@ -501,7 +875,8 @@ const addQuickTask = () => {
   tasks.value.unshift({
     id: Date.now(),
     text: quickTaskInput.value.trim(),
-    completed: false
+    completed: false,
+    groupIds: getDefaultGroupIdsForNewTask()
   })
 
   saveTasksToStorage()
@@ -568,17 +943,34 @@ const deleteTask = (id) => {
   }
 }
 
-const updateTask = ({ id, text }) => {
+const updateTask = ({ id, text, groupIds }) => {
   const task = tasks.value.find(t => t.id === id)
   if (task) {
-    task.text = text
+    if (text != null) task.text = text
+    if (groupIds != null) task.groupIds = groupIds
     saveTasksToStorage()
   }
 }
 
 // 从专注模式更新任务
 const updateTasksFromFocus = (updatedTasks) => {
-  tasks.value = updatedTasks
+  const selectedIds = new Set(tasksInSelectedGroup.value.map((task) => task.id))
+  const updatedById = new Map(updatedTasks.map((task) => [task.id, task]))
+  const mergedTasks = tasks.value.flatMap((task) => {
+    if (!selectedIds.has(task.id)) return [task]
+    const updatedTask = updatedById.get(task.id)
+    return updatedTask ? [updatedTask] : []
+  })
+
+  const existingIds = new Set(mergedTasks.map((task) => task.id))
+  updatedTasks.forEach((task) => {
+    if (!existingIds.has(task.id)) {
+      mergedTasks.push(task)
+    }
+  })
+
+  tasks.value = mergedTasks
+  saveTasksToStorage()
 }
 
 const draggedTask = ref(null)
@@ -622,16 +1014,65 @@ const serializeTasks = (taskList) => {
   return taskList.map((task) => ({
     id: Number(task.id),
     text: String(task.text || ''),
-    completed: Boolean(task.completed)
+    completed: Boolean(task.completed),
+    groupIds: normalizeTaskGroupIds(task)
   }))
+}
+
+const serializeTaskData = () => ({
+  schemaVersion: 2,
+  groups: groups.value.map((group) => ({
+    id: String(group.id),
+    name: String(group.name || '').trim() || '未命名分组',
+    createdAt: Number(group.createdAt) || 0
+  })),
+  tasks: serializeTasks(tasks.value)
+})
+
+const applyTaskData = (taskData) => {
+  if (Array.isArray(taskData)) {
+    taskData = {
+      schemaVersion: 2,
+      groups: [{ id: INBOX_GROUP_ID, name: '收件箱', createdAt: 0 }],
+      tasks: taskData.map((task) => ({
+        ...task,
+        groupIds: Array.isArray(task.groupIds) && task.groupIds.length > 0 ? task.groupIds : [INBOX_GROUP_ID]
+      }))
+    }
+  }
+
+  const nextGroups = Array.isArray(taskData?.groups) && taskData.groups.length > 0
+    ? taskData.groups
+    : [{ id: INBOX_GROUP_ID, name: '收件箱', createdAt: 0 }]
+  groups.value = nextGroups
+  tasks.value = (Array.isArray(taskData?.tasks) ? taskData.tasks : []).map((task) => ({
+    ...task,
+    groupIds: Array.isArray(task.groupIds) && task.groupIds.length > 0 ? task.groupIds : [INBOX_GROUP_ID]
+  }))
+  if (selectedGroupId.value !== ALL_GROUP_ID && !groups.value.some((group) => group.id === selectedGroupId.value)) {
+    selectedGroupId.value = ALL_GROUP_ID
+  }
+}
+
+const applyTaskResult = (result) => {
+  if (!result?.success) {
+    if (result?.error) console.error('任务操作失败:', result.error)
+    return
+  }
+  if (result.taskData) {
+    applyTaskData(result.taskData)
+    return
+  }
+  if (Array.isArray(result.groups)) groups.value = result.groups
+  if (Array.isArray(result.tasks)) tasks.value = result.tasks
 }
 
 const saveTasksToStorage = () => {
   if (syncingExternalTasks.value) return
-  const plainTasks = serializeTasks(tasks.value)
+  const plainTaskData = serializeTaskData()
 
-  if (window.electronAPI && window.electronAPI.saveTasks) {
-    window.electronAPI.saveTasks(plainTasks).then((result) => {
+  if (window.electronAPI && window.electronAPI.saveTaskData) {
+    window.electronAPI.saveTaskData(plainTaskData).then((result) => {
       if (!result?.success) {
         console.error('保存任务失败:', result?.error)
       }
@@ -641,22 +1082,33 @@ const saveTasksToStorage = () => {
     return
   }
 
-  localStorage.setItem('tasks', JSON.stringify(plainTasks))
+  if (window.electronAPI && window.electronAPI.saveTasks) {
+    window.electronAPI.saveTasks(plainTaskData.tasks).then((result) => {
+      if (!result?.success) {
+        console.error('保存任务失败:', result?.error)
+      }
+    }).catch((error) => {
+      console.error('保存任务失败:', error)
+    })
+    return
+  }
+
+  localStorage.setItem('tasks', JSON.stringify(plainTaskData))
 }
 
 const loadTasksFromStorage = async () => {
   const saved = localStorage.getItem('tasks')
 
-  if (window.electronAPI && window.electronAPI.getTasks) {
+  if (window.electronAPI && window.electronAPI.getTaskData) {
     try {
-      const result = await window.electronAPI.getTasks()
+      const result = await window.electronAPI.getTaskData()
       if (result?.success) {
         if (result.tasks.length === 0 && saved) {
           try {
             const legacyTasks = JSON.parse(saved)
-            const migrated = await window.electronAPI.saveTasks(legacyTasks)
+            const migrated = await window.electronAPI.saveTaskData(legacyTasks)
             if (migrated?.success) {
-              tasks.value = migrated.tasks
+              applyTaskResult(migrated)
               localStorage.removeItem('tasks')
               return
             }
@@ -665,7 +1117,7 @@ const loadTasksFromStorage = async () => {
           }
         }
 
-        tasks.value = result.tasks
+        applyTaskResult(result)
         return
       }
       console.error('加载任务失败:', result?.error)
@@ -676,7 +1128,7 @@ const loadTasksFromStorage = async () => {
 
   if (saved) {
     try {
-      tasks.value = JSON.parse(saved)
+      applyTaskData(JSON.parse(saved))
     } catch (error) {
       console.error('加载失败:', error)
       tasks.value = []
@@ -732,7 +1184,7 @@ onMounted(() => {
     unsubscribeTasksChanged = window.electronAPI.onTasksChanged((payload) => {
       if (!payload || !Array.isArray(payload.tasks)) return
       syncingExternalTasks.value = true
-      tasks.value = payload.tasks
+      applyTaskData(payload.taskData || payload)
       syncingExternalTasks.value = false
     })
   }
@@ -854,32 +1306,46 @@ onUnmounted(() => {
 }
 
 .content-wrapper {
+  --scrollbar-track: rgba(var(--primary-rgb, 255, 179, 71), 0.12);
+  --scrollbar-thumb-solid: var(--text-on-color, var(--theme-color));
+  --scrollbar-thumb-gradient: linear-gradient(
+    180deg,
+    var(--primary-color, var(--theme-color)) 0%,
+    var(--secondary-color, var(--theme-color)) 100%
+  );
+  --scrollbar-thumb-hover: linear-gradient(
+    180deg,
+    var(--secondary-color, var(--theme-color)) 0%,
+    var(--primary-color, var(--theme-color)) 100%
+  );
+  --scrollbar-border: rgba(248, 250, 252, 0.92);
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 20px;
   scrollbar-width: thin;
-  scrollbar-color: var(--text-on-color, var(--theme-color)) #f1f5f9;
+  scrollbar-color: var(--scrollbar-thumb-solid) var(--scrollbar-track);
 }
 
 .content-wrapper::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .content-wrapper::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 3px;
+  background: var(--scrollbar-track);
+  border-radius: 999px;
 }
 
 .content-wrapper::-webkit-scrollbar-thumb {
-  background: var(--theme-color);
-  border-radius: 3px;
-  border: 1px solid #f1f5f9;
+  background: var(--scrollbar-thumb-gradient);
+  border-radius: 999px;
+  border: 2px solid var(--scrollbar-border);
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb, 255, 179, 71), 0.22);
 }
 
 .content-wrapper::-webkit-scrollbar-thumb:hover {
-  background: var(--theme-color);
-  filter: brightness(1.1);
+  background: var(--scrollbar-thumb-hover);
+  box-shadow: 0 3px 12px rgba(var(--primary-rgb, 255, 179, 71), 0.32);
 }
 
 .todo-container {
@@ -1220,6 +1686,408 @@ onUnmounted(() => {
   z-index: 1;
 }
 
+.group-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 2;
+}
+
+.group-tab,
+.group-add-btn,
+.group-action-btn {
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.group-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.group-tab span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-tab:hover {
+  background: #f8fafc;
+  color: var(--text-on-color, var(--theme-color));
+}
+
+.group-tab.active {
+  background: var(--theme-color);
+  color: var(--text-on-white, white);
+}
+
+.group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  font-size: 11px;
+}
+
+.group-tab.active .group-count {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.group-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.group-add-btn:hover {
+  color: var(--text-on-color, var(--theme-color));
+  background: var(--theme-color-light);
+}
+
+.group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.group-action-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.group-action-btn:hover {
+  background: #e2e8f0;
+}
+
+.group-action-btn.danger {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.group-action-btn.danger:hover {
+  background: #fecaca;
+}
+
+.group-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.45);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.group-modal-content {
+  width: min(420px, 100%);
+  max-height: min(560px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+  overflow: hidden;
+}
+
+.group-modal-content.compact {
+  width: min(360px, 100%);
+}
+
+.group-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.group-modal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--theme-color-light);
+  color: var(--text-on-color, var(--theme-color));
+  flex-shrink: 0;
+}
+
+.group-modal-header.danger {
+  border-bottom-color: rgba(239, 68, 68, 0.18);
+}
+
+.group-modal-icon.danger {
+  background: #fee2e2;
+  color: #ef4444;
+}
+
+.group-modal-title-wrap {
+  min-width: 0;
+}
+
+.group-modal-title-wrap h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.group-modal-title-wrap p {
+  margin: 4px 0 0;
+  max-width: 100%;
+  color: #64748b;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-modal-body {
+  --scrollbar-track: rgba(var(--primary-rgb, 255, 179, 71), 0.12);
+  --scrollbar-thumb-solid: var(--text-on-color, var(--theme-color));
+  --scrollbar-thumb-gradient: linear-gradient(
+    180deg,
+    var(--primary-color, var(--theme-color)) 0%,
+    var(--secondary-color, var(--theme-color)) 100%
+  );
+  --scrollbar-thumb-hover: linear-gradient(
+    180deg,
+    var(--secondary-color, var(--theme-color)) 0%,
+    var(--primary-color, var(--theme-color)) 100%
+  );
+  --scrollbar-border: rgba(255, 255, 255, 0.94);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb-solid) var(--scrollbar-track);
+}
+
+.group-modal-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.group-modal-body::-webkit-scrollbar-track {
+  margin: 8px 0;
+  background: var(--scrollbar-track);
+  border-radius: 999px;
+}
+
+.group-modal-body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-gradient);
+  border: 2px solid var(--scrollbar-border);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb, 255, 179, 71), 0.22);
+}
+
+.group-modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  box-shadow: 0 3px 12px rgba(var(--primary-rgb, 255, 179, 71), 0.32);
+}
+
+.group-modal-add,
+.group-editor-form {
+  display: flex;
+  gap: 8px;
+}
+
+.group-modal-add {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-bottom: 8px;
+  background: white;
+}
+
+.group-editor-form {
+  flex-direction: column;
+  padding: 16px 18px 18px;
+}
+
+.group-modal-input {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  outline: none;
+  padding: 0 12px;
+  color: #0f172a;
+  background: #f8fafc;
+  font-size: 14px;
+}
+
+.group-modal-input:focus {
+  border-color: var(--theme-color);
+  background: white;
+  box-shadow: 0 0 0 3px var(--theme-color-light);
+}
+
+.group-modal-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 9px;
+  background: var(--theme-color);
+  color: var(--text-on-white, white);
+  cursor: pointer;
+}
+
+.group-modal-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.group-modal-option:hover {
+  background: #f1f5f9;
+}
+
+.group-modal-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--theme-color, #ff8c42);
+}
+
+.group-modal-option span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-modal-option small {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.group-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 18px 18px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.group-modal-footer.inline-footer {
+  padding: 0;
+  border-top: none;
+}
+
+.group-modal-btn {
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 9px 16px;
+  transition: all 0.2s ease;
+}
+
+.group-modal-btn.secondary {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.group-modal-btn.primary {
+  background: var(--theme-color);
+  color: var(--text-on-white, white);
+}
+
+.group-modal-btn:hover {
+  transform: translateY(-1px);
+}
+
+.delete-group-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 18px;
+}
+
+.delete-choice {
+  width: 100%;
+  min-height: 42px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  transition: all 0.18s ease;
+}
+
+.delete-choice:hover {
+  transform: translateY(-1px);
+}
+
+.delete-choice.cancel {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.delete-choice.soft {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.delete-choice.danger {
+  background: #ef4444;
+  color: white;
+  box-shadow: 0 8px 18px rgba(239, 68, 68, 0.22);
+}
+
 @media (max-width: 600px) {
   .stats-card {
     padding: 16px;
@@ -1265,6 +2133,11 @@ onUnmounted(() => {
     padding: 6px;
   }
 
+  .group-section {
+    gap: 6px;
+    padding: 6px;
+  }
+
   .filter-icon {
     width: 14px;
     height: 14px;
@@ -1304,13 +2177,13 @@ onUnmounted(() => {
 
 .filter-btn:hover {
   background: #f8fafc;
-  color: var(--text-on-color, var(--theme-color));
+  color: var(--filter-color, var(--text-on-color, var(--theme-color)));
 }
 
 .filter-btn.active {
-  background: var(--theme-color);
-  color: var(--text-on-white, white);
-  box-shadow: 0 4px 12px var(--theme-color-light);
+  background: var(--filter-color, var(--theme-color));
+  color: var(--text-on-filter, var(--text-on-white, white));
+  box-shadow: 0 4px 12px var(--filter-color-medium, var(--theme-color-light));
 }
 
 .filter-icon {
@@ -1794,16 +2667,33 @@ onUnmounted(() => {
 
 /* 暗夜模式 - 滚动条 */
 .dark-mode .content-wrapper {
-  scrollbar-color: var(--theme-color) #334155;
+  --scrollbar-track: rgba(51, 65, 85, 0.92);
+  --scrollbar-border: #334155;
+  scrollbar-color: var(--theme-color) var(--scrollbar-track);
 }
 
 .dark-mode .content-wrapper::-webkit-scrollbar-track {
-  background: #334155;
+  background: var(--scrollbar-track);
 }
 
 .dark-mode .content-wrapper::-webkit-scrollbar-thumb {
-  background: var(--theme-color);
-  border: 1px solid #334155;
+  background: var(--scrollbar-thumb-gradient);
+  border-color: var(--scrollbar-border);
+}
+
+.dark-mode .group-modal-body {
+  --scrollbar-track: rgba(30, 41, 59, 0.95);
+  --scrollbar-border: #334155;
+  scrollbar-color: var(--theme-color) var(--scrollbar-track);
+}
+
+.dark-mode .group-modal-body::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.dark-mode .group-modal-body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-gradient);
+  border-color: var(--scrollbar-border);
 }
 
 /* 暗夜模式 - 内容区域 */
@@ -1911,20 +2801,115 @@ onUnmounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+.dark-mode .group-section {
+  background: #334155;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .group-tab {
+  color: #94a3b8;
+}
+
+.dark-mode .group-tab:hover {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.dark-mode .group-tab.active {
+  color: var(--text-on-theme-dark, white);
+  background: var(--theme-color);
+}
+
+.dark-mode .group-add-btn,
+.dark-mode .group-action-btn {
+  background: #475569;
+  color: #cbd5e1;
+}
+
+.dark-mode .group-action-btn.danger {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+.dark-mode .group-modal-content {
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+}
+
+.dark-mode .group-modal-header,
+.dark-mode .group-modal-footer {
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+.dark-mode .group-modal-title-wrap h3 {
+  color: #f1f5f9;
+}
+
+.dark-mode .group-modal-title-wrap p,
+.dark-mode .group-modal-option small {
+  color: #94a3b8;
+}
+
+.dark-mode .group-modal-option {
+  background: #475569;
+  color: #f1f5f9;
+}
+
+.dark-mode .group-modal-add {
+  background: transparent;
+}
+
+.dark-mode .group-modal-input {
+  background: #475569;
+  border-color: rgba(148, 163, 184, 0.25);
+  color: #f1f5f9;
+}
+
+.dark-mode .group-modal-input:focus {
+  background: #526276;
+}
+
+.dark-mode .group-modal-option:hover {
+  background: #526276;
+}
+
+.dark-mode .group-modal-btn.secondary {
+  background: #475569;
+  color: #cbd5e1;
+}
+
+.dark-mode .group-modal-icon.danger {
+  background: rgba(248, 113, 113, 0.16);
+  color: #f87171;
+}
+
+.dark-mode .delete-choice.cancel {
+  background: #475569;
+  color: #cbd5e1;
+}
+
+.dark-mode .delete-choice.soft {
+  background: rgba(251, 146, 60, 0.16);
+  color: #fdba74;
+}
+
+.dark-mode .delete-choice.danger {
+  background: #dc2626;
+}
+
 .dark-mode .filter-btn {
   color: #94a3b8;
   background: transparent;
 }
 
 .dark-mode .filter-btn:hover {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.1);
+  color: var(--filter-color, #fbbf24);
+  background: var(--filter-color-light, rgba(251, 191, 36, 0.1));
 }
 
 .dark-mode .filter-btn.active {
-  color: var(--text-on-theme-dark, white);
-  background: var(--theme-color);
-  box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
+  color: var(--text-on-filter, var(--text-on-theme-dark, white));
+  background: var(--filter-color, var(--theme-color));
+  box-shadow: 0 4px 12px rgba(var(--filter-rgb, 255, 140, 0), 0.3);
 }
 
 /* 暗夜模式 - 任务列表 */
