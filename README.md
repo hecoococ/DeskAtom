@@ -38,6 +38,24 @@
 - **已完成** - 只显示已完成的任务
 - **流畅动画** - 筛选切换时有平滑的过渡动画
 
+### 🗂️ 分组任务
+
+- **高一级分组** - 先选择任务分组，再在分组内切换全部、未完成、已完成
+- **默认收件箱** - 新任务默认进入当前分组；在所有任务中添加时进入收件箱
+- **多分组归属** - 一个任务可以同时属于多个分组，适合交叉项目和复合场景
+- **分组管理** - 支持创建、重命名、删除和重排分组
+- **安全删除分组** - 删除分组时可选择仅删除分组，或同时删除该分组中的独占任务
+
+### 🤖 AI 分解任务
+
+- **长文本拆分** - 在“添加新任务”中输入一大段内容后，可让 AI 拆分成多个短任务
+- **已有任务拆分** - 可对单个已有任务进行 AI 分解，原任务默认保留
+- **发送前编辑** - 调用 AI 前可编辑实际发送内容，适配长文本和补充背景
+- **数量控制** - 支持无要求、准确数量，以及大约 `x ~ y` 个任务的区间控制
+- **结果预览** - AI 结果不会直接写入，可先编辑任务文本、删除不需要的条目
+- **补充后重试** - 如果 AI 猜测了不准确的信息，可补充说明并重新分解
+- **写入分组** - 拆分结果可新建建议分组，也可并入当前分组或已有分组
+
 ### 📊 任务统计
 
 - **实时统计** - 显示任务总数、已完成数、未完成数
@@ -128,6 +146,8 @@
 ### 💾 数据存储
 
 - **本地存储** - 任务数据保存在本地，保护隐私
+- **分组持久化** - 分组、任务归属和排序会随任务数据一起保存
+- **AI 配置保存** - OpenAI 兼容服务配置保存在本地配置文件中
 - **自动保存** - 任务变更自动保存，无需手动操作
 - **持久化** - 关闭应用后数据不丢失
 
@@ -171,6 +191,254 @@ pnpm electron:build
 ```
 
 构建产物位于 `release` 目录下。
+
+***
+
+## 🔌 DeskAtom MCP Server
+
+DeskAtom MCP Server 是一个可独立安装和发布的本地 stdio MCP 工具。Claude Desktop、Cursor、Codex 等 MCP client 可以通过它调用 `deskatom_*` 工具来管理 DeskAtom 的任务、分组和 AI 拆分。
+
+MCP Server 与桌面应用共享同一份本地数据，但它不是桌面窗口的一部分。安装 DeskAtom 桌面应用后，MCP 不会自动启用；需要在 MCP client 中手动添加 stdio 配置。
+
+### 数据位置
+
+- 默认数据目录：`%APPDATA%\DeskAtom`
+- 任务数据：`%APPDATA%\DeskAtom\tasks.json`
+- AI 配置：`%APPDATA%\DeskAtom\ai-settings.json`
+- 桌面端和 MCP server 共用这份本地数据。
+
+### 推荐方式：npm / npx
+
+发布到 npm 后，用户不需要手动下载和安装 MCP Server，只要本机安装了 Node.js，即可在 MCP client 中使用 `npx` 自动拉取并运行：
+
+```json
+{
+  "mcpServers": {
+    "deskatom": {
+      "command": "npx",
+      "args": ["-y", "deskatom-mcp-server@latest"]
+    }
+  }
+}
+```
+
+如果 Windows 客户端找不到 `npx`，可改用 `cmd` 包一层：
+
+```json
+{
+  "mcpServers": {
+    "deskatom": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "deskatom-mcp-server@latest"]
+    }
+  }
+}
+```
+
+这种方式适合大多数用户。升级时重启 MCP client，`npx` 会按版本参数拉取对应包；如果希望固定版本，可以把 `latest` 改成具体版本号，例如 `deskatom-mcp-server@2.7.0`。
+
+### 备用方式：GitHub Release Zip
+
+GitHub Release 中也建议保留 MCP Server zip 包，方便不想使用 npm 自动拉取的用户下载。例如：
+
+```text
+deskatom-mcp-server-v2.7.0.zip
+```
+
+压缩包中建议包含：
+
+```text
+deskatom-mcp-server/
+├── mcpServer.js
+├── taskStore.js
+├── aiService.js
+├── package.json
+├── package-lock.json
+└── README.md
+```
+
+用户下载后解压，在该目录运行：
+
+```bash
+npm install --omit=dev
+```
+
+然后把解压目录中的 `mcpServer.js` 绝对路径配置到 MCP client。也可以随 release 提供已安装依赖的完整压缩包，但体积会更大，跨平台兼容性也更依赖打包时的 Node 环境。
+
+### 本地安装位置
+
+打包安装后的 Electron 文件通常在 `app.asar` 中，不建议直接让 Node.js 执行安装目录里的 `mcpServer.js`。推荐把 MCP server 放在固定目录，例如：
+
+```text
+D:\MCP Server\deskatom-mcp-server
+```
+
+该目录至少需要包含：
+
+```text
+deskatom-mcp-server/
+├── mcpServer.js
+├── taskStore.js
+├── aiService.js
+├── package.json
+└── node_modules/
+```
+
+如果没有 `node_modules`，先在该目录安装依赖：
+
+```bash
+cd "D:\MCP Server\deskatom-mcp-server"
+npm install
+```
+
+确认 MCP server 能启动：
+
+```bash
+node "D:\MCP Server\deskatom-mcp-server\mcpServer.js"
+```
+
+手动运行时进程会等待 MCP client 通过 stdio 通信，停在那里是正常的，按 `Ctrl+C` 退出即可。
+
+### Claude Desktop 配置示例
+
+打开配置文件：
+
+```text
+%APPDATA%\Claude\claude_desktop_config.json
+```
+
+加入：
+
+```json
+{
+  "mcpServers": {
+    "deskatom": {
+      "command": "npx",
+      "args": ["-y", "deskatom-mcp-server@latest"]
+    }
+  }
+}
+```
+
+保存后重启 Claude Desktop。
+
+如果使用 GitHub zip 解压安装，则把配置改为：
+
+```json
+{
+  "mcpServers": {
+    "deskatom": {
+      "command": "node",
+      "args": [
+        "D:\\MCP Server\\deskatom-mcp-server\\mcpServer.js"
+      ]
+    }
+  }
+}
+```
+
+### Cursor / Codex 配置思路
+
+在 MCP 配置中添加 stdio server：
+
+```json
+{
+  "name": "deskatom",
+  "command": "npx",
+  "args": ["-y", "deskatom-mcp-server@latest"]
+}
+```
+
+不同客户端的外层 JSON 字段可能不同，但核心都是：
+
+- npm/npx 方式：`command` 为 `npx`，`args` 为 `["-y", "deskatom-mcp-server@latest"]`
+- GitHub zip 方式：`command` 为 `node`，`args` 指向 `mcpServer.js` 的绝对路径
+
+配置完成后重启对应 MCP client，工具列表中应该能看到 `deskatom_*` 工具。
+
+### 发布 MCP Server
+
+发布前先检查：
+
+```bash
+pnpm mcp:check
+pnpm mcp:publish:dry-run
+```
+
+发布到 npm：
+
+```bash
+npm login
+pnpm mcp:publish
+```
+
+生成 GitHub Release zip：
+
+```bash
+pnpm mcp:zip
+```
+
+生成的压缩包位于：
+
+```text
+release/deskatom-mcp-server-v2.7.0.zip
+```
+
+### 从源码运行 MCP
+
+开发时可直接运行：
+
+```bash
+pnpm mcp:start
+```
+
+或在 MCP client 中配置：
+
+```json
+{
+  "mcpServers": {
+    "deskatom": {
+      "command": "node",
+      "args": [
+        "D:\\大学文档\\俊涛html\\electron-todo-desktop\\electron\\mcpServer.js"
+      ]
+    }
+  }
+}
+```
+
+源码运行适合开发和调试。正式使用时仍建议配置独立 MCP Server 目录，避免桌面应用源码路径变化影响 MCP client。
+
+### 可用能力
+
+- 查询任务、统计任务数量
+- 添加单个或批量任务
+- 修改任务文本、完成状态和分组
+- 批量完成、删除、清空和重排任务
+- 创建、重命名、删除和重排分组
+- 批量管理任务分组归属
+- AI 拆分文本为任务，并将预览结果写入新分组或已有分组
+
+### 常见问题
+
+- **客户端看不到工具**：检查 Node.js 是否已安装，并确认 `mcpServer.js` 使用绝对路径。
+- **npx 启动失败**：确认已安装 Node.js，并尝试把 `command` 改为 `cmd`，`args` 改为 `["/c", "npx", "-y", "deskatom-mcp-server@latest"]`。
+- **路径包含反斜杠报错**：JSON 中 Windows 路径需要写成 `D:\\MCP Server\\...`。
+- **AI 拆分不可用**：先在 DeskAtom 设置面板中配置 AI 服务，或确认 `%APPDATA%\DeskAtom\ai-settings.json` 已保存 API Key、Base URL 和模型。
+- **桌面端没同步最新任务**：当前版本不做实时外部变更监听，MCP 修改后可重启或刷新桌面端查看最新数据。
+
+### GitHub Release 建议
+
+如果同时发布桌面应用和 MCP Server，建议 release 产物分开命名：
+
+```text
+DeskAtom-Setup-2.7.0.exe
+DeskAtom-2.7.0.AppImage
+DeskAtom-2.7.0.dmg
+deskatom-mcp-server-v2.7.0.zip
+```
+
+桌面安装包负责图形界面，MCP Server 压缩包负责给 MCP client 调用。两者通过本机数据目录共享任务数据，因此可以独立更新，但建议保持相同版本号，方便排查兼容问题。
 
 ***
 
@@ -236,6 +504,7 @@ DeskAtom/
 | `pnpm dev`            | 仅启动 Vite 开发服务器   |
 | `pnpm build`          | 构建 Vue 应用        |
 | `pnpm preview`        | 预览构建结果           |
+| `pnpm mcp:start`      | 启动本地 MCP server   |
 | `pnpm electron:dev`   | 启动 Electron 开发模式 |
 | `pnpm electron:build` | 构建可执行文件          |
 

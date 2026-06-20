@@ -1,0 +1,47 @@
+{
+  "name": "deskatom-mcp-server",
+  "version": "2.7.0",
+  "description": "Local stdio MCP server for DeskAtom task and group management.",
+  "type": "module",
+  "main": "mcpServer.js",
+  "bin": {
+    "deskatom-mcp-server": "mcpServer.js"
+  },
+  "scripts": {
+    "start": "node mcpServer.js",
+    "check": "node --check mcpServer.js && node --check taskStore.js && node --check aiService.js"
+  },
+  "files": [
+    "mcpServer.js",
+    "taskStore.js",
+    "aiService.js",
+    "README.md"
+  ],
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "deskatom",
+    "todo",
+    "tasks"
+  ],
+  "author": "DeskAtom",
+  "license": "MIT",
+  "homepage": "https://github.com/hecoococ/DeskAtom#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hecoococ/DeskAtom.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hecoococ/DeskAtom/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  }
+}
